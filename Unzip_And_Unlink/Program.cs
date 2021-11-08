@@ -10,7 +10,7 @@ namespace Unzip_And_Unlink
 {
     class Program
     {
-        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\BMAnderson\test", @"C:\Users\b5anderson\source\repos\Unzip_Unlink_Files" };
+        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" };
         ///
 
         static void NewFrameOfReference(string base_directory)
