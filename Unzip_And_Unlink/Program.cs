@@ -91,11 +91,11 @@ namespace Unzip_And_Unlink
                     }
                 }
             }
+            Console.WriteLine("Running...");
         }
         static void UnzipFiles(string zip_file_directory)
         {
             string[] all_files = Directory.GetFiles(zip_file_directory);
-            Console.WriteLine("Running...");
             foreach (string zip_file in all_files)
             {
                 long file_size = zip_file.Length;
@@ -125,12 +125,13 @@ namespace Unzip_And_Unlink
                         RenameFolder(zip_file_directory, output_dir);
                         File.Delete(zip_file);
                     }
-
+                    Console.WriteLine("Running...");
                 }
             }
         }
         static void Main(string[] args)
         {
+            Console.WriteLine("Running...");
             while (true)
             {
                 // First lets unzip the life images
