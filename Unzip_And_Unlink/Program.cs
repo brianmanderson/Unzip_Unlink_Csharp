@@ -69,6 +69,7 @@ namespace Unzip_And_Unlink
                 fid.Close();
                 Console.WriteLine("Finished!");
             }
+            Console.WriteLine("Running...");
         }
         static void RenameFolder(string base_directory, string unzipped_file_directory)
         {
@@ -91,7 +92,6 @@ namespace Unzip_And_Unlink
                     }
                 }
             }
-            Console.WriteLine("Running...");
         }
         static void UnzipFiles(string zip_file_directory)
         {
