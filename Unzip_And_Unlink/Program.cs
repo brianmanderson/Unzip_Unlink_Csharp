@@ -17,7 +17,7 @@ namespace Unzip_And_Unlink
         {
             string[] all_directories = Directory.GetDirectories(base_directory);
             string[] all_files;
-            string status_file, uid;
+            string status_file, uid, overall_status;
 
             foreach (string directory in all_directories)
             {
@@ -28,6 +28,12 @@ namespace Unzip_And_Unlink
                 if (File.Exists(status_file))
                 {
                     continue;
+                }
+                overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+                if (!File.Exists(overall_status))
+                {
+                    FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                    fid_overallstatus.Close();
                 }
                 all_files = Directory.GetFiles(directory);
                 Thread.Sleep(3000);
@@ -68,8 +74,12 @@ namespace Unzip_And_Unlink
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
                 Console.WriteLine("Finished!");
+                if (File.Exists(overall_status))
+                {
+                    File.Delete(overall_status);
+                }
+                Console.WriteLine("Running...");
             }
-            Console.WriteLine("Running...");
         }
         static void RenameFolder(string base_directory, string unzipped_file_directory)
         {
