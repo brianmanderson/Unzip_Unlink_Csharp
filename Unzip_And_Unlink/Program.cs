@@ -77,11 +77,18 @@ namespace Unzip_And_Unlink
             {
                 if (dicom_file.EndsWith(".dcm"))
                 {
-                    var file = DicomFile.Open(dicom_file);
-                    string patient_name = file.Dataset.GetString(DicomTag.PatientName).Replace('^', '_');
-                    Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
-                    Console.WriteLine("Finished!");
-                    break;
+                    try
+                    {
+                        var file = DicomFile.Open(dicom_file);
+                        string patient_name = file.Dataset.GetString(DicomTag.PatientName).Replace('^', '_');
+                        Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
+                        Console.WriteLine("Finished!");
+                        break;
+                    }
+                    catch
+                    {
+                        continue;
+                    }
                 }
             }
         }
@@ -108,6 +115,12 @@ namespace Unzip_And_Unlink
                         Directory.CreateDirectory(output_dir);
                         Console.WriteLine("Extracting...");
                         ZipFile.ExtractToDirectory(zip_file, output_dir);
+                        Console.WriteLine("Renaming Folder...");
+                        RenameFolder(zip_file_directory, output_dir);
+                        File.Delete(zip_file);
+                    }
+                    else
+                    {
                         Console.WriteLine("Renaming Folder...");
                         RenameFolder(zip_file_directory, output_dir);
                         File.Delete(zip_file);
