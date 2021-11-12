@@ -106,6 +106,7 @@ namespace Unzip_And_Unlink
         static void UnzipFiles(string zip_file_directory)
         {
             string[] all_files = Directory.GetFiles(zip_file_directory);
+            string overall_status;
             foreach (string zip_file in all_files)
             {
                 long file_size = zip_file.Length;
@@ -120,6 +121,12 @@ namespace Unzip_And_Unlink
                 {
                     string file_name = Path.GetFileName(zip_file);
                     string output_dir = Path.Join(zip_file_directory, file_name.Substring(0, file_name.Length - 4));
+                    overall_status = Path.Join(zip_file_directory, $"ExtractingZip.txt");
+                    if (!File.Exists(overall_status))
+                    {
+                        FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                        fid_overallstatus.Close();
+                    }
                     if (!Directory.Exists(output_dir))
                     {
                         Directory.CreateDirectory(output_dir);
@@ -134,6 +141,10 @@ namespace Unzip_And_Unlink
                         Console.WriteLine("Renaming Folder...");
                         RenameFolder(zip_file_directory, output_dir);
                         File.Delete(zip_file);
+                    }
+                    if (File.Exists(overall_status))
+                    {
+                        File.Delete(overall_status);
                     }
                     Console.WriteLine("Running...");
                 }
