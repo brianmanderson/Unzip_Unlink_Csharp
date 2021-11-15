@@ -37,105 +37,113 @@ namespace Unzip_And_Unlink
             //file is not locked
             return false;
         }
-        static void NewFrameOfReference(string base_directory)
+        static void NewFrameOfReference(string base_directory, string directory)
         {
-            string[] all_directories = Directory.GetDirectories(base_directory);
             string[] all_files;
             bool had_files;
             string status_file, uid, overall_status;
-
-            foreach (string directory in all_directories)
+            List<string> all_series_uids = new List<string>();
+            List<DicomUID> frame_of_reference_uids = new List<DicomUID>();
+            DicomUID new_frame_UID;
+            status_file = Path.Join(directory, "NewFrameOfRef.txt");
+            overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            if (!File.Exists(overall_status))
             {
-                List<string> all_series_uids = new List<string>();
-                List<DicomUID> frame_of_reference_uids = new List<DicomUID>();
-                DicomUID new_frame_UID;
-                status_file = Path.Join(directory, "NewFrameOfRef.txt");
-                if (File.Exists(status_file))
-                {
-                    continue;
-                }
-                overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-                if (!File.Exists(overall_status))
-                {
-                    FileStream fid_overallstatus = File.OpenWrite(overall_status);
-                    fid_overallstatus.Close();
-                }
+                FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                fid_overallstatus.Close();
+            }
+            all_files = Directory.GetFiles(directory);
+            Thread.Sleep(3000);
+            while (all_files.Length != Directory.GetFiles(directory).Length)
+            {
+                Console.WriteLine("Waiting for files to be fully transferred...");
                 all_files = Directory.GetFiles(directory);
                 Thread.Sleep(3000);
-                while (all_files.Length != Directory.GetFiles(directory).Length)
-                {
-                    Console.WriteLine("Waiting for files to be fully transferred...");
-                    all_files = Directory.GetFiles(directory);
-                    Thread.Sleep(3000);
-                }
-                Console.WriteLine("Updating frames of reference...");
-                had_files = false;
-                foreach (string dicom_file in all_files)
-                {
-                    if (dicom_file.EndsWith(".dcm"))
-                    {
-                        had_files = true;
-                        try
-                        {
-                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                            if (file.Dataset.Contains(DicomTag.Modality))
-                            {
-                                if (!file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
-                                {
-                                    continue;
-                                }
-                            }
-                            if (file.Dataset.Contains(DicomTag.FrameOfReferenceUID))
-                            {
-                                string series_uid = file.Dataset.GetString(DicomTag.SeriesInstanceUID);
-                                if (!all_series_uids.Contains(series_uid))
-                                {
-                                    all_series_uids.Add(series_uid);
-                                    frame_of_reference_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
-                                }
-                                new_frame_UID = frame_of_reference_uids[all_series_uids.IndexOf(series_uid)];
-                                file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_frame_UID);
-                                file.Save(dicom_file);
-                            }
-                        }
-                        catch
-                        {
-                            continue;
-                        }
-                    }
-                }
-                if (had_files)
-                {
-                    FileStream fid = File.OpenWrite(status_file);
-                    fid.Close();
-                    Console.WriteLine("Finished!");
-                    if (File.Exists(overall_status))
-                    {
-                        File.Delete(overall_status);
-                    }
-                    Console.WriteLine("Running...");
-                }
             }
-        }
-        static void RenameFolder(string base_directory, string unzipped_file_directory)
-        {
-            string[] all_files = Directory.GetFiles(unzipped_file_directory);
+            Console.WriteLine("Updating frames of reference...");
+            had_files = false;
             foreach (string dicom_file in all_files)
             {
                 if (dicom_file.EndsWith(".dcm"))
                 {
+                    had_files = true;
                     try
                     {
-                        var file = DicomFile.Open(dicom_file);
-                        string patient_name = file.Dataset.GetString(DicomTag.PatientName).Replace('^', '_');
-                        Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
-                        Console.WriteLine("Finished!");
-                        break;
+                        var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                        if (file.Dataset.Contains(DicomTag.Modality))
+                        {
+                            if (!file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
+                            {
+                                continue;
+                            }
+                        }
+                        if (file.Dataset.Contains(DicomTag.FrameOfReferenceUID))
+                        {
+                            string series_uid = file.Dataset.GetString(DicomTag.SeriesInstanceUID);
+                            if (!all_series_uids.Contains(series_uid))
+                            {
+                                all_series_uids.Add(series_uid);
+                                frame_of_reference_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
+                            }
+                            new_frame_UID = frame_of_reference_uids[all_series_uids.IndexOf(series_uid)];
+                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_frame_UID);
+                            file.Save(dicom_file);
+                        }
                     }
                     catch
                     {
                         continue;
                     }
+                }
+            }
+            if (had_files)
+            {
+                FileStream fid = File.OpenWrite(status_file);
+                fid.Close();
+                Console.WriteLine("Finished!");
+                Console.WriteLine("Running...");
+            }
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
+            }
+        }
+        static void NewFrameOfReferenceDirectory(string base_directory)
+        {
+            string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
+            string[] dicom_files;
+            string status_file;
+            foreach (string directory in all_directories)
+            {
+                dicom_files = Directory.GetFiles(directory, "*.dcm");
+                if (dicom_files.Length > 0)
+                {
+                    status_file = Path.Join(directory, "NewFrameOfRef.txt");
+                    if (File.Exists(status_file))
+                    {
+                        continue;
+                    }
+                    NewFrameOfReference(base_directory, directory);
+                }
+            }
+        }
+        static void RenameFolder(string unzipped_file_directory)
+        {
+            string[] dicom_files = Directory.GetFiles(unzipped_file_directory, "*.dcm");
+            string base_directory = Path.GetFullPath(Path.Join(unzipped_file_directory, ".."));
+            foreach (string dicom_file in dicom_files)
+            {
+                try
+                {
+                    var file = DicomFile.Open(dicom_file);
+                    string patient_name = file.Dataset.GetString(DicomTag.PatientName).Replace('^', '_');
+                    Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
+                    Console.WriteLine("Finished!");
+                    break;
+                }
+                catch
+                {
+                    continue;
                 }
             }
         }
@@ -146,14 +154,12 @@ namespace Unzip_And_Unlink
             foreach (string zip_file in all_files)
             {
                 FileInfo zip_file_info = new FileInfo(zip_file);
-                Thread.Sleep(1000);
+                Thread.Sleep(3000);
                 while (IsFileLocked(zip_file_info))
                 {
                     Console.WriteLine("Waiting for file to be fully transferred...");
                     Thread.Sleep(3000);
                 }
-            if (zip_file.EndsWith(".zip"))
-            {
                 string file_name = Path.GetFileName(zip_file);
                 string output_dir = Path.Join(Path.GetDirectoryName(zip_file), file_name.Substring(0, file_name.Length - 4));
                 overall_status = Path.Join(zip_file_directory, $"ExtractingZip.txt");
@@ -168,13 +174,13 @@ namespace Unzip_And_Unlink
                     Console.WriteLine("Extracting...");
                     ZipFile.ExtractToDirectory(zip_file, output_dir);
                     Console.WriteLine("Renaming Folder...");
-                    RenameFolder(zip_file_directory, output_dir);
+                    RenameFolder(output_dir);
                     File.Delete(zip_file);
                 }
                 else
                 {
                     Console.WriteLine("Renaming Folder...");
-                    RenameFolder(zip_file_directory, output_dir);
+                    RenameFolder(output_dir);
                     File.Delete(zip_file);
                 }
                 if (File.Exists(overall_status))
@@ -182,23 +188,6 @@ namespace Unzip_And_Unlink
                     File.Delete(overall_status);
                 }
                 Console.WriteLine("Running...");
-            }
-            }
-        }
-        static void CheckFolder(string file_path)
-        {
-            Thread.Sleep(1000);
-            if (Directory.Exists(file_path))
-            {
-                NewFrameOfReference(file_path);
-            }
-        }
-        static void down_folder(string file_path)
-        {
-            string[] all_directories = Directory.GetDirectories(file_path);
-            foreach (string directory in all_directories)
-            {
-                CheckFolder(directory);
             }
         }
         static void Main(string[] args)
@@ -211,8 +200,9 @@ namespace Unzip_And_Unlink
                 {
                     if (Directory.Exists(file_path))
                     {
+                        Thread.Sleep(3000);
                         UnzipFiles(file_path);
-                        CheckFolder(file_path);
+                        NewFrameOfReferenceDirectory(file_path);
                     }
                     // down_folder(file_path);
                 }
