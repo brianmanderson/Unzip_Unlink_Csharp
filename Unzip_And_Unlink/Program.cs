@@ -72,9 +72,9 @@ namespace Unzip_And_Unlink
                 had_files = false;
                 foreach (string dicom_file in all_files)
                 {
-                    had_files = true;
                     if (dicom_file.EndsWith(".dcm"))
                     {
+                        had_files = true;
                         try
                         {
                             var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
@@ -211,7 +211,7 @@ namespace Unzip_And_Unlink
                 foreach (string file_path in file_paths)
                 {
                     CheckFolder(file_path);
-                    down_folder(file_path);
+                    // down_folder(file_path);
                 }
             }
         }
