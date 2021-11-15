@@ -13,6 +13,30 @@ namespace Unzip_And_Unlink
         static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" , @"C:\Users\markb\Desktop\Fake_Images" };
         ///
 
+        static bool IsFileLocked(FileInfo file)
+        {
+            FileStream stream = null;
+            try
+            {
+                stream = file.Open(FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                //the file is unavailable because it is:
+                //still being written to
+                //or being processed by another thread
+                //or does not exist (has already been processed)
+                return true;
+            }
+            finally
+            {
+                if (stream != null)
+                    stream.Close();
+            }
+
+            //file is not locked
+            return false;
+        }
         static void NewFrameOfReference(string base_directory)
         {
             string[] all_directories = Directory.GetDirectories(base_directory);
@@ -110,11 +134,11 @@ namespace Unzip_And_Unlink
             foreach (string zip_file in all_files)
             {
                 long file_size = zip_file.Length;
+                FileInfo zip_file_info = new FileInfo(zip_file);
                 Thread.Sleep(3000);
-                while (zip_file.Length != file_size)
+                while (IsFileLocked(zip_file_info))
                 {
                     Console.WriteLine("Waiting for file to be fully transferred...");
-                    file_size = zip_file.Length;
                     Thread.Sleep(3000);
                 }
                 if (zip_file.EndsWith(".zip"))
