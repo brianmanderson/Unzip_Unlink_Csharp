@@ -8,8 +8,47 @@ using System.Collections.Generic;
 
 namespace Unzip_And_Unlink
 {
+    public class FileWatcher
+    {
+        private bool folder_changed;
+        public bool Folder_Changed
+        {
+            get
+            {
+                return folder_changed;
+            }
+            set
+            {
+                folder_changed = value;
+            }
+        }
+        public FileWatcher(string directory)
+        {
+            FileSystemWatcher file_watcher = new FileSystemWatcher(directory);
+            file_watcher.NotifyFilter = NotifyFilters.Attributes
+                                 | NotifyFilters.CreationTime
+                                 | NotifyFilters.DirectoryName
+                                 | NotifyFilters.FileName
+                                 | NotifyFilters.LastAccess
+                                 | NotifyFilters.LastWrite
+                                 | NotifyFilters.Security
+                                 | NotifyFilters.Size;
+            file_watcher.Changed += OnChanged;
+            file_watcher.EnableRaisingEvents = true;
+        }
+        private void OnChanged(object sender, FileSystemEventArgs e)
+        {
+            if (e.ChangeType != WatcherChangeTypes.Changed)
+            {
+                folder_changed = false;
+                return;
+            }
+            folder_changed = true;
+        }
+    }
     class Program
     {
+        public bool folder_changed;
         static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" };
         ///
 
@@ -45,6 +84,7 @@ namespace Unzip_And_Unlink
             List<string> all_series_uids = new List<string>();
             List<DicomUID> frame_of_reference_uids = new List<DicomUID>();
             DicomUID new_frame_UID;
+            FileWatcher folder_watcher_class = new FileWatcher(directory);
             status_file = Path.Join(directory, "NewFrameOfRef.txt");
             overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
             if (!File.Exists(overall_status))
@@ -54,11 +94,11 @@ namespace Unzip_And_Unlink
             }
             all_files = Directory.GetFiles(directory);
             Thread.Sleep(3000);
-            while (all_files.Length != Directory.GetFiles(directory).Length)
+            while (folder_watcher_class.Folder_Changed)
             {
+                folder_watcher_class.Folder_Changed = false;
                 Console.WriteLine("Waiting for files to be fully transferred...");
-                all_files = Directory.GetFiles(directory);
-                Thread.Sleep(3000);
+                Thread.Sleep(5000);
             }
             Console.WriteLine("Updating frames of reference...");
             had_files = false;
