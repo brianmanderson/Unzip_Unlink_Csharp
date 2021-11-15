@@ -41,6 +41,7 @@ namespace Unzip_And_Unlink
         {
             string[] all_directories = Directory.GetDirectories(base_directory);
             string[] all_files;
+            bool had_files;
             string status_file, uid, overall_status;
 
             foreach (string directory in all_directories)
@@ -68,8 +69,10 @@ namespace Unzip_And_Unlink
                     Thread.Sleep(3000);
                 }
                 Console.WriteLine("Updating frames of reference...");
+                had_files = false;
                 foreach (string dicom_file in all_files)
                 {
+                    had_files = true;
                     if (dicom_file.EndsWith(".dcm"))
                     {
                         try
@@ -101,14 +104,17 @@ namespace Unzip_And_Unlink
                         }
                     }
                 }
-                FileStream fid = File.OpenWrite(status_file);
-                fid.Close();
-                Console.WriteLine("Finished!");
-                if (File.Exists(overall_status))
+                if (had_files)
                 {
-                    File.Delete(overall_status);
+                    FileStream fid = File.OpenWrite(status_file);
+                    fid.Close();
+                    Console.WriteLine("Finished!");
+                    if (File.Exists(overall_status))
+                    {
+                        File.Delete(overall_status);
+                    }
+                    Console.WriteLine("Running...");
                 }
-                Console.WriteLine("Running...");
             }
         }
         static void RenameFolder(string base_directory, string unzipped_file_directory)
