@@ -10,7 +10,7 @@ namespace Unzip_And_Unlink
 {
     class Program
     {
-        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" , @"C:\Users\markb\Desktop\Fake_Images" };
+        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" };
         ///
 
         static bool IsFileLocked(FileInfo file)
@@ -135,7 +135,7 @@ namespace Unzip_And_Unlink
             {
                 long file_size = zip_file.Length;
                 FileInfo zip_file_info = new FileInfo(zip_file);
-                Thread.Sleep(3000);
+                Thread.Sleep(1000);
                 while (IsFileLocked(zip_file_info))
                 {
                     Console.WriteLine("Waiting for file to be fully transferred...");
@@ -182,7 +182,7 @@ namespace Unzip_And_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    Thread.Sleep(3000);
+                    Thread.Sleep(1000);
                     if (!Directory.Exists(file_path))
                     {
                         continue;
