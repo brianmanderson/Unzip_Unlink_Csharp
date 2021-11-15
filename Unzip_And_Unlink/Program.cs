@@ -141,7 +141,7 @@ namespace Unzip_And_Unlink
         }
         static void UnzipFiles(string zip_file_directory)
         {
-            string[] all_files = Directory.GetFiles(zip_file_directory, ".zip");
+            string[] all_files = Directory.GetFiles(zip_file_directory, "*.zip", SearchOption.AllDirectories);
             string overall_status;
             foreach (string zip_file in all_files)
             {
@@ -155,7 +155,7 @@ namespace Unzip_And_Unlink
             if (zip_file.EndsWith(".zip"))
             {
                 string file_name = Path.GetFileName(zip_file);
-                string output_dir = Path.Join(zip_file_directory, file_name.Substring(0, file_name.Length - 4));
+                string output_dir = Path.Join(Path.GetDirectoryName(zip_file), file_name.Substring(0, file_name.Length - 4));
                 overall_status = Path.Join(zip_file_directory, $"ExtractingZip.txt");
                 if (!File.Exists(overall_status))
                 {
@@ -190,7 +190,6 @@ namespace Unzip_And_Unlink
             Thread.Sleep(1000);
             if (Directory.Exists(file_path))
             {
-                UnzipFiles(zip_file_directory: file_path);
                 NewFrameOfReference(file_path);
             }
         }
@@ -210,7 +209,11 @@ namespace Unzip_And_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    CheckFolder(file_path);
+                    if (Directory.Exists(file_path))
+                    {
+                        UnzipFiles(file_path);
+                        CheckFolder(file_path);
+                    }
                     // down_folder(file_path);
                 }
             }
