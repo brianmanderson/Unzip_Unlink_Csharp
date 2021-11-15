@@ -92,7 +92,6 @@ namespace Unzip_And_Unlink
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            all_files = Directory.GetFiles(directory);
             Thread.Sleep(3000);
             while (folder_watcher_class.Folder_Changed)
             {
@@ -100,6 +99,7 @@ namespace Unzip_And_Unlink
                 Console.WriteLine("Waiting for files to be fully transferred...");
                 Thread.Sleep(5000);
             }
+            all_files = Directory.GetFiles(directory);
             Console.WriteLine("Updating frames of reference...");
             had_files = false;
             foreach (string dicom_file in all_files)
