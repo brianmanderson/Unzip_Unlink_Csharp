@@ -75,7 +75,13 @@ namespace Unzip_And_Unlink
                         try
                         {
                             var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                            
+                            if (file.Dataset.Contains(DicomTag.Modality))
+                            {
+                                if (!file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
+                                {
+                                    continue;
+                                }
+                            }
                             if (file.Dataset.Contains(DicomTag.FrameOfReferenceUID))
                             {
                                 string series_uid = file.Dataset.GetString(DicomTag.SeriesInstanceUID);
@@ -129,11 +135,10 @@ namespace Unzip_And_Unlink
         }
         static void UnzipFiles(string zip_file_directory)
         {
-            string[] all_files = Directory.GetFiles(zip_file_directory);
+            string[] all_files = Directory.GetFiles(zip_file_directory, ".zip");
             string overall_status;
             foreach (string zip_file in all_files)
             {
-                long file_size = zip_file.Length;
                 FileInfo zip_file_info = new FileInfo(zip_file);
                 Thread.Sleep(1000);
                 while (IsFileLocked(zip_file_info))
@@ -141,37 +146,54 @@ namespace Unzip_And_Unlink
                     Console.WriteLine("Waiting for file to be fully transferred...");
                     Thread.Sleep(3000);
                 }
-                if (zip_file.EndsWith(".zip"))
+            if (zip_file.EndsWith(".zip"))
+            {
+                string file_name = Path.GetFileName(zip_file);
+                string output_dir = Path.Join(zip_file_directory, file_name.Substring(0, file_name.Length - 4));
+                overall_status = Path.Join(zip_file_directory, $"ExtractingZip.txt");
+                if (!File.Exists(overall_status))
                 {
-                    string file_name = Path.GetFileName(zip_file);
-                    string output_dir = Path.Join(zip_file_directory, file_name.Substring(0, file_name.Length - 4));
-                    overall_status = Path.Join(zip_file_directory, $"ExtractingZip.txt");
-                    if (!File.Exists(overall_status))
-                    {
-                        FileStream fid_overallstatus = File.OpenWrite(overall_status);
-                        fid_overallstatus.Close();
-                    }
-                    if (!Directory.Exists(output_dir))
-                    {
-                        Directory.CreateDirectory(output_dir);
-                        Console.WriteLine("Extracting...");
-                        ZipFile.ExtractToDirectory(zip_file, output_dir);
-                        Console.WriteLine("Renaming Folder...");
-                        RenameFolder(zip_file_directory, output_dir);
-                        File.Delete(zip_file);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Renaming Folder...");
-                        RenameFolder(zip_file_directory, output_dir);
-                        File.Delete(zip_file);
-                    }
-                    if (File.Exists(overall_status))
-                    {
-                        File.Delete(overall_status);
-                    }
-                    Console.WriteLine("Running...");
+                    FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                    fid_overallstatus.Close();
                 }
+                if (!Directory.Exists(output_dir))
+                {
+                    Directory.CreateDirectory(output_dir);
+                    Console.WriteLine("Extracting...");
+                    ZipFile.ExtractToDirectory(zip_file, output_dir);
+                    Console.WriteLine("Renaming Folder...");
+                    RenameFolder(zip_file_directory, output_dir);
+                    File.Delete(zip_file);
+                }
+                else
+                {
+                    Console.WriteLine("Renaming Folder...");
+                    RenameFolder(zip_file_directory, output_dir);
+                    File.Delete(zip_file);
+                }
+                if (File.Exists(overall_status))
+                {
+                    File.Delete(overall_status);
+                }
+                Console.WriteLine("Running...");
+            }
+            }
+        }
+        static void CheckFolder(string file_path)
+        {
+            Thread.Sleep(1000);
+            if (Directory.Exists(file_path))
+            {
+                UnzipFiles(zip_file_directory: file_path);
+                NewFrameOfReference(file_path);
+            }
+        }
+        static void down_folder(string file_path)
+        {
+            string[] all_directories = Directory.GetDirectories(file_path);
+            foreach (string directory in all_directories)
+            {
+                CheckFolder(directory);
             }
         }
         static void Main(string[] args)
@@ -182,13 +204,8 @@ namespace Unzip_And_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    Thread.Sleep(1000);
-                    if (!Directory.Exists(file_path))
-                    {
-                        continue;
-                    }
-                    UnzipFiles(zip_file_directory: file_path);
-                    NewFrameOfReference(file_path);
+                    CheckFolder(file_path);
+                    down_folder(file_path);
                 }
             }
         }
