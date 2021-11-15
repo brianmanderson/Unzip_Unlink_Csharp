@@ -190,6 +190,14 @@ namespace Unzip_And_Unlink
                 Console.WriteLine("Running...");
             }
         }
+        static void CheckDownPath(string file_path)
+        {
+            if (Directory.Exists(file_path))
+            {
+                UnzipFiles(file_path);
+                NewFrameOfReferenceDirectory(file_path);
+            }
+        }
         static void Main(string[] args)
         {
             Console.WriteLine("Running...");
@@ -198,11 +206,14 @@ namespace Unzip_And_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    if (Directory.Exists(file_path))
+                    Thread.Sleep(3000);
+                    try
                     {
-                        Thread.Sleep(3000);
-                        UnzipFiles(file_path);
-                        NewFrameOfReferenceDirectory(file_path);
+                        CheckDownPath(file_path);
+                    }
+                    catch
+                    {
+                        continue;
                     }
                     // down_folder(file_path);
                 }
