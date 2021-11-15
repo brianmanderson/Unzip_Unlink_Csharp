@@ -10,7 +10,7 @@ namespace Unzip_And_Unlink
 {
     class Program
     {
-        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" };
+        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" , @"C:\Users\markb\Desktop\Fake_Images" };
         ///
 
         static void NewFrameOfReference(string base_directory)
@@ -159,6 +159,10 @@ namespace Unzip_And_Unlink
                 foreach (string file_path in file_paths)
                 {
                     Thread.Sleep(3000);
+                    if (!Directory.Exists(file_path))
+                    {
+                        continue;
+                    }
                     UnzipFiles(zip_file_directory: file_path);
                     NewFrameOfReference(file_path);
                 }
