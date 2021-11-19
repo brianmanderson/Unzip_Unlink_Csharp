@@ -49,7 +49,7 @@ namespace Unzip_And_Unlink
     class Program
     {
         public bool folder_changed;
-        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" };
+        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" , @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
         ///
 
         static bool IsFileLocked(FileInfo file)
