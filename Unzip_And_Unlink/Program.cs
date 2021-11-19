@@ -87,17 +87,21 @@ namespace Unzip_And_Unlink
             FileWatcher folder_watcher_class = new FileWatcher(directory);
             status_file = Path.Join(directory, "NewFrameOfRef.txt");
             overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-            if (!File.Exists(overall_status))
-            {
-                FileStream fid_overallstatus = File.OpenWrite(overall_status);
-                fid_overallstatus.Close();
-            }
             Thread.Sleep(3000);
             while (folder_watcher_class.Folder_Changed)
             {
                 folder_watcher_class.Folder_Changed = false;
                 Console.WriteLine("Waiting for files to be fully transferred...");
                 Thread.Sleep(5000);
+            }
+            if (File.Exists(status_file))
+            {
+                return;
+            }
+            if (!File.Exists(overall_status))
+            {
+                FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                fid_overallstatus.Close();
             }
             all_files = Directory.GetFiles(directory);
             Console.WriteLine("Updating frames of reference...");
