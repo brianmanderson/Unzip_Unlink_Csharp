@@ -144,7 +144,7 @@ namespace Unzip_And_Unlink
             {
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
-                MoveFolder(moving_to_location: Path.Join(base_directory, "Finished"), current_folder: directory);
+                MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                 Console.WriteLine("Finished!");
                 Console.WriteLine("Running...");
             }
