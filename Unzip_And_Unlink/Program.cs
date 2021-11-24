@@ -103,7 +103,7 @@ namespace Unzip_And_Unlink
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            all_files = Directory.GetFiles(directory);
+            all_files = Directory.GetFiles(directory, "*.dcm");
             Console.WriteLine("Updating frames of reference...");
             had_files = false;
             foreach (string dicom_file in all_files)
@@ -144,6 +144,7 @@ namespace Unzip_And_Unlink
             {
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
+                MoveFolder(moving_to_location: Path.Join(base_directory, "Finished"), current_folder: directory);
                 Console.WriteLine("Finished!");
                 Console.WriteLine("Running...");
             }
@@ -190,6 +191,16 @@ namespace Unzip_And_Unlink
                     continue;
                 }
             }
+        }
+        static void MoveFolder(string moving_to_location, string current_folder)
+        {
+            string folder_name = Path.GetFileName(current_folder);
+            string moving_directory = Path.GetFullPath(Path.Join(moving_to_location, "Finished"));
+            if (!Directory.Exists(moving_directory))
+            {
+                Directory.CreateDirectory(moving_directory);
+            }
+            Directory.Move(current_folder, Path.Combine(moving_directory, folder_name));
         }
         static void UnzipFiles(string zip_file_directory)
         {
