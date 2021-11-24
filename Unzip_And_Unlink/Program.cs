@@ -192,10 +192,9 @@ namespace Unzip_And_Unlink
                 }
             }
         }
-        static void MoveFolder(string moving_to_location, string current_folder)
+        static void MoveFolder(string moving_directory, string current_folder)
         {
             string folder_name = Path.GetFileName(current_folder);
-            string moving_directory = Path.GetFullPath(Path.Join(moving_to_location, "Finished"));
             if (!Directory.Exists(moving_directory))
             {
                 Directory.CreateDirectory(moving_directory);
