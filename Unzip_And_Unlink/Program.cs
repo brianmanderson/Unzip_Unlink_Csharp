@@ -242,6 +242,7 @@ namespace Unzip_And_Unlink
                     File.Delete(overall_status);
                 }
                 Console.WriteLine("Running...");
+                Thread.Sleep(3000);
             }
         }
         static void CheckDownPath(string file_path)
