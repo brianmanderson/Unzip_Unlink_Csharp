@@ -225,6 +225,7 @@ namespace Unzip_And_Unlink
                 }
                 if (move_on)
                 {
+                    Console.WriteLine("Taking too long, will come back and try again...");
                     continue;
                 }
                 string file_name = Path.GetFileName(zip_file);
