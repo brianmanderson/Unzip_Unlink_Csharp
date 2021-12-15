@@ -209,10 +209,23 @@ namespace Unzip_And_Unlink
             {
                 FileInfo zip_file_info = new FileInfo(zip_file);
                 Thread.Sleep(3000);
+                bool move_on = false;
+                int tries = 0;
+                Thread.Sleep(3000);
                 while (IsFileLocked(zip_file_info))
                 {
                     Console.WriteLine("Waiting for file to be fully transferred...");
+                    tries += 1;
                     Thread.Sleep(3000);
+                    if (tries > 5)
+                    {
+                        move_on = true;
+                        break;
+                    }
+                }
+                if (move_on)
+                {
+                    continue;
                 }
                 string file_name = Path.GetFileName(zip_file);
                 string output_dir = Path.Join(Path.GetDirectoryName(zip_file), file_name.Substring(0, file_name.Length - 4));
