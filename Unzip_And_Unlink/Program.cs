@@ -49,7 +49,7 @@ namespace Unzip_And_Unlink
     class Program
     {
         public bool folder_changed;
-        static List<string> file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
         ///
 
         static bool IsFileLocked(FileInfo file)
@@ -272,16 +272,30 @@ namespace Unzip_And_Unlink
             Console.WriteLine("Running...");
             while (true)
             {
+                List<string> file_paths = new List<string> { };
+                foreach (string file_path in default_file_paths)
+                {
+                    file_paths.Add(file_path);
+                }
+
                 string file_paths_file = Path.Join(".", $"FilePaths.txt");
                 if (File.Exists(file_paths_file))
                 {
-                    string all_file_paths = File.ReadAllText(file_paths_file);
-                    foreach (string file_path in all_file_paths.Split("\r\n"))
+                    try
                     {
-                        if (!file_paths.Contains(file_path))
+                        string all_file_paths = File.ReadAllText(file_paths_file);
+                        foreach (string file_path in all_file_paths.Split("\r\n"))
                         {
-                            file_paths.Add(file_path);
+                            if (!file_paths.Contains(file_path))
+                            {
+                                file_paths.Add(file_path);
+                            }
                         }
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Couldn't read the FilePaths.txt file...");
+                        Thread.Sleep(3000);
                     }
                 }
                 // First lets unzip the life images
