@@ -49,7 +49,7 @@ namespace Unzip_And_Unlink
     class Program
     {
         public bool folder_changed;
-        static string[] file_paths = { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink" , @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        static List<string> file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
         ///
 
         static bool IsFileLocked(FileInfo file)
@@ -272,6 +272,18 @@ namespace Unzip_And_Unlink
             Console.WriteLine("Running...");
             while (true)
             {
+                string file_paths_file = Path.Join(".", $"FilePaths.txt");
+                if (File.Exists(file_paths_file))
+                {
+                    string all_file_paths = File.ReadAllText(file_paths_file);
+                    foreach (string file_path in all_file_paths.Split("\r\n"))
+                    {
+                        if (!file_paths.Contains(file_path))
+                        {
+                            file_paths.Add(file_path);
+                        }
+                    }
+                }
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
