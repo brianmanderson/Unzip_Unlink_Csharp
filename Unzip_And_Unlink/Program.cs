@@ -279,7 +279,23 @@ namespace Unzip_And_Unlink
                 }
 
                 string file_paths_file = Path.Join(".", $"FilePaths.txt");
-                if (File.Exists(file_paths_file))
+                if (!File.Exists(file_paths_file))
+                {
+                    try
+                    {
+                        StreamWriter fid = new(file_paths_file);
+                        foreach (string file_path in default_file_paths)
+                        {
+                            fid.WriteLine($"{file_path}");
+                        }
+                        fid.Close();
+                    }
+                    catch
+                    {
+                        int x = 5;
+                    }
+                }
+                else
                 {
                     try
                     {
