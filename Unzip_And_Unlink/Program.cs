@@ -140,6 +140,10 @@ namespace Unzip_And_Unlink
                     }
                 }
             }
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
+            }
             if (had_files)
             {
                 FileStream fid = File.OpenWrite(status_file);
@@ -147,10 +151,6 @@ namespace Unzip_And_Unlink
                 MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                 Console.WriteLine("Finished!");
                 Console.WriteLine("Running...");
-            }
-            if (File.Exists(overall_status))
-            {
-                File.Delete(overall_status);
             }
         }
         static void NewFrameOfReferenceDirectory(string base_directory)
@@ -170,6 +170,7 @@ namespace Unzip_And_Unlink
                     status_file = Path.Join(directory, "NewFrameOfRef.txt");
                     if (File.Exists(status_file))
                     {
+                        MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                         continue;
                     }
                     NewFrameOfReference(base_directory, directory);
@@ -187,7 +188,14 @@ namespace Unzip_And_Unlink
                 {
                     var file = DicomFile.Open(dicom_file);
                     string patient_name = file.Dataset.GetString(DicomTag.PatientName).Replace('^', '_');
-                    Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
+                    try
+                    {
+                        Directory.Move(unzipped_file_directory, Path.Join(base_directory, patient_name));
+                    }
+                    catch
+                    {
+                        continue;
+                    }
                     Console.WriteLine("Finished!");
                     break;
                 }
