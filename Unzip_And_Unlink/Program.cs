@@ -239,18 +239,11 @@ namespace Unzip_And_Unlink
                 if (!Directory.Exists(output_dir))
                 {
                     Directory.CreateDirectory(output_dir);
-                    Console.WriteLine("Extracting...");
-                    ZipFile.ExtractToDirectory(zip_file, output_dir);
-                    Console.WriteLine("Renaming Folder...");
-                    RenameFolder(output_dir);
-                    File.Delete(zip_file);
                 }
-                else
-                {
-                    Console.WriteLine("Renaming Folder...");
-                    RenameFolder(output_dir);
-                    File.Delete(zip_file);
-                }
+                Console.WriteLine("Extracting...");
+                ZipFile.ExtractToDirectory(zip_file, output_dir, overwriteFiles: true);
+                RenameFolder(output_dir);
+                File.Delete(zip_file);
                 if (File.Exists(overall_status))
                 {
                     File.Delete(overall_status);
