@@ -155,11 +155,15 @@ namespace Unzip_And_Unlink
         }
         static void NewFrameOfReferenceDirectory(string base_directory)
         {
-            string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             string[] dicom_files;
             string status_file;
+            string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             foreach (string directory in all_directories)
             {
+                if (directory.Contains("Finished"))
+                {
+                    continue;
+                }
                 dicom_files = Directory.GetFiles(directory, "*.dcm");
                 if (dicom_files.Length > 0)
                 {
@@ -171,6 +175,7 @@ namespace Unzip_And_Unlink
                     NewFrameOfReference(base_directory, directory);
                 }
             }
+
         }
         static void RenameFolder(string unzipped_file_directory)
         {
@@ -239,11 +244,18 @@ namespace Unzip_And_Unlink
                 if (!Directory.Exists(output_dir))
                 {
                     Directory.CreateDirectory(output_dir);
+                    Console.WriteLine("Extracting...");
+                    ZipFile.ExtractToDirectory(zip_file, output_dir);
+                    Console.WriteLine("Renaming Folder...");
+                    RenameFolder(output_dir);
+                    File.Delete(zip_file);
                 }
-                Console.WriteLine("Extracting...");
-                ZipFile.ExtractToDirectory(zip_file, output_dir, overwriteFiles: true);
-                RenameFolder(output_dir);
-                File.Delete(zip_file);
+                else
+                {
+                    Console.WriteLine("Renaming Folder...");
+                    RenameFolder(output_dir);
+                    File.Delete(zip_file);
+                }
                 if (File.Exists(overall_status))
                 {
                     File.Delete(overall_status);
