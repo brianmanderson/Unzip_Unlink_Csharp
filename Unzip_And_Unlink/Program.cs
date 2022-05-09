@@ -60,7 +60,7 @@ namespace Unzip_And_Unlink
     class Program
     {
         public bool folder_changed;
-        DicomParser dicomParser;
+        public DicomParser dicomParser;
         static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
         ///
 
@@ -87,6 +87,49 @@ namespace Unzip_And_Unlink
 
             //file is not locked
             return false;
+        }
+        static void UpdatedFrameOfReference(string base_directory, string directory)
+        {
+            string status_file, uid, overall_status;
+            FolderWatcher folder_watcher_class = new FolderWatcher(directory);
+            status_file = Path.Join(directory, "NewFrameOfRef.txt");
+            overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            Thread.Sleep(3000);
+            while (folder_watcher_class.Folder_Changed)
+            {
+                folder_watcher_class.Folder_Changed = false;
+                Console.WriteLine("Waiting for files to be fully transferred...");
+                Thread.Sleep(5000);
+            }
+            if (File.Exists(status_file))
+            {
+                return;
+            }
+            if (!File.Exists(overall_status))
+            {
+                FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                fid_overallstatus.Close();
+            }
+            DicomParser dicomParser = new DicomParser();
+            Console.WriteLine("Parsing DICOM files...");
+            dicomParser.ParseDirectory(directory);
+
+            if (dicomParser.series_instance_uids.Count > 0)
+            {
+                Console.WriteLine("Updating frames of reference...");
+            }
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
+            }
+            if (had_files)
+            {
+                FileStream fid = File.OpenWrite(status_file);
+                fid.Close();
+                MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
+                Console.WriteLine("Finished!");
+                Console.WriteLine("Running...");
+            }
         }
         static void NewFrameOfReference(string base_directory, string directory)
         {
