@@ -5,9 +5,34 @@ using System.IO;
 using System.IO.Compression;
 using System.Collections.Generic;
 using Unzip_And_Unlink.Services;
+using itk.simple;
 
 namespace Unzip_And_Unlink
 {
+    class NewFrameOfReferenceClass
+    {
+        ImageSeriesReader series_reader;
+        public NewFrameOfReferenceClass()
+        {
+            series_reader = new ImageSeriesReader();
+        }
+        public void UpdateFrameOfReference(string base_directory, string directory)
+        {
+            Dictionary<string, List<string>> series_instance_uids = new Dictionary<string, List<string>>();
+            VectorString dicom_series_ids = ImageSeriesReader.GetGDCMSeriesIDs(directory);
+            foreach (string dicom_series_id in dicom_series_ids)
+            {
+                VectorString dicom_names = ImageSeriesReader.GetGDCMSeriesFileNames(directory, dicom_series_id);
+                string dicom_file = dicom_names[0];
+                series_instance_uid = Add_dicom_from_file(dicom_file, image_class_dict, rt_class_dict);
+                foreach (string dicom_name in dicom_names)
+                {
+                    image_class_dict[series_instance_uid].add_file(dicom_name);
+                    dicom_file_list.Remove(dicom_name.Replace('/', '\\'));
+                }
+            }
+        }
+    }
     class Program
     {
         public bool folder_changed;
@@ -37,6 +62,10 @@ namespace Unzip_And_Unlink
 
             //file is not locked
             return false;
+        }
+        static void UpdatedNewFrameOfReference(string base_directory, string directory)
+        {
+
         }
         static void NewFrameOfReference(string base_directory, string directory)
         {
