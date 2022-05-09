@@ -42,7 +42,7 @@ namespace Unzip_And_Unlink
         }
         static void UpdatedFrameOfReference(string base_directory, string directory)
         {
-            string status_file, uid, overall_status;
+            string status_file, overall_status;
             FolderWatcher folder_watcher_class = new FolderWatcher(directory);
             status_file = Path.Join(directory, "NewFrameOfRef.txt");
             overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
@@ -65,16 +65,12 @@ namespace Unzip_And_Unlink
             Console.WriteLine("Parsing DICOM files...");
             DicomParser dicomParser = new DicomParser();
             dicomParser.GetSeriesInstanceUIDs(directory);
-            NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
-
-            if (dicomParser.series_instance_uids.Count > 0)
+            if (dicomParser.dicom_series_instance_uids.Count > 0)
             {
+                NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
+                newFrameOfReferenceClass.make_series_instance_dict(dicomParser.dicom_series_instance_uids);
                 Console.WriteLine("Updating frames of reference...");
-                foreach (string key in dicomParser.series_instance_uids.Keys)
-                {
-                    newFrameOfReferenceClass.ReWriteFrameOfReference(dicomParser.series_instance_uids[key]);
-                }
-
+                newFrameOfReferenceClass.ReWriteFrameOfReference(directory);
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
                 MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
