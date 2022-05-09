@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Collections.Generic;
 using Unzip_And_Unlink.Services;
 using itk.simple;
+using DicomFolderParser;
 
 namespace Unzip_And_Unlink
 {
@@ -59,6 +60,7 @@ namespace Unzip_And_Unlink
     class Program
     {
         public bool folder_changed;
+        DicomParser dicomParser;
         static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
         ///
 
