@@ -4,48 +4,10 @@ using System.Threading;
 using System.IO;
 using System.IO.Compression;
 using System.Collections.Generic;
-
+using Unzip_And_Unlink.Services;
 
 namespace Unzip_And_Unlink
 {
-    public class FileWatcher
-    {
-        private bool folder_changed;
-        public bool Folder_Changed
-        {
-            get
-            {
-                return folder_changed;
-            }
-            set
-            {
-                folder_changed = value;
-            }
-        }
-        public FileWatcher(string directory)
-        {
-            FileSystemWatcher file_watcher = new FileSystemWatcher(directory);
-            file_watcher.NotifyFilter = NotifyFilters.Attributes
-                                 | NotifyFilters.CreationTime
-                                 | NotifyFilters.DirectoryName
-                                 | NotifyFilters.FileName
-                                 | NotifyFilters.LastAccess
-                                 | NotifyFilters.LastWrite
-                                 | NotifyFilters.Security
-                                 | NotifyFilters.Size;
-            file_watcher.Changed += OnChanged;
-            file_watcher.EnableRaisingEvents = true;
-        }
-        private void OnChanged(object sender, FileSystemEventArgs e)
-        {
-            if (e.ChangeType != WatcherChangeTypes.Changed)
-            {
-                folder_changed = false;
-                return;
-            }
-            folder_changed = true;
-        }
-    }
     class Program
     {
         public bool folder_changed;
@@ -84,7 +46,7 @@ namespace Unzip_And_Unlink
             List<string> all_series_uids = new List<string>();
             List<DicomUID> frame_of_reference_uids = new List<DicomUID>();
             DicomUID new_frame_UID;
-            FileWatcher folder_watcher_class = new FileWatcher(directory);
+            FolderWatcher folder_watcher_class = new FolderWatcher(directory);
             status_file = Path.Join(directory, "NewFrameOfRef.txt");
             overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
             Thread.Sleep(3000);
