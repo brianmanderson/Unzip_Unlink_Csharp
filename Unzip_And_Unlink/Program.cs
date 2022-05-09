@@ -14,9 +14,8 @@ namespace Unzip_And_Unlink
     {
         public bool folder_changed;
         public DicomParser dicomParser;
-        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\BMAnderson\Testing_Unzip_Unlink" };
-
-        ///static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        ///
 
         static bool IsFileLocked(FileInfo file)
         {
