@@ -82,12 +82,10 @@ namespace Unzip_And_Unlink
                 NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
                 newFrameOfReferenceClass.make_series_instance_dict(dicomParser.dicom_series_instance_uids);
                 newFrameOfReferenceClass.ReWriteFrameOfReference(directory);
-                FileStream fid = File.OpenWrite(status_file);
-                fid.Close();
+                FileStream fid_status = File.OpenWrite(status_file);
+                fid_status.Close();
                 MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                 Console.WriteLine("Finished!");
-                Console.WriteLine("Running...");
-
             }
             if (File.Exists(overall_status))
             {
@@ -97,7 +95,7 @@ namespace Unzip_And_Unlink
         static void NewFrameOfReferenceDirectory(string base_directory)
         {
             string[] dicom_files;
-            string status_file;
+            string status_file, overall_status, parsing_status;
             string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             foreach (string directory in all_directories)
             {
@@ -111,10 +109,23 @@ namespace Unzip_And_Unlink
                     status_file = Path.Join(directory, "NewFrameOfRef.txt");
                     if (File.Exists(status_file))
                     {
+                        File.Delete(status_file);
                         MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
-                        continue;
+                        overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+                        parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
+                        if (File.Exists(overall_status))
+                        {
+                            File.Delete(overall_status);
+                        }
+                        if (File.Exists(parsing_status))
+                        {
+                            File.Delete(parsing_status);
+                        }
                     }
-                    UpdatedFrameOfReference(base_directory, directory);
+                    else
+                    {
+                        UpdatedFrameOfReference(base_directory, directory);
+                    }
                 }
             }
 
@@ -149,11 +160,16 @@ namespace Unzip_And_Unlink
         static void MoveFolder(string moving_directory, string current_folder)
         {
             string folder_name = Path.GetFileName(current_folder);
+            string status_file = Path.Join(moving_directory, folder_name, "NewFrameOfRef.txt");
             if (!Directory.Exists(moving_directory))
             {
                 Directory.CreateDirectory(moving_directory);
             }
             Directory.Move(current_folder, Path.Combine(moving_directory, folder_name));
+            if (File.Exists(status_file))
+            {
+                File.Delete(status_file);
+            }
         }
         static void UnzipFiles(string zip_file_directory)
         {
