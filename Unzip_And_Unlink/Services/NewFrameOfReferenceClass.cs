@@ -50,5 +50,20 @@ namespace Unzip_And_Unlink.Services
             }
         }
 
+        public void ReWriteFrameOfReference(Dictionary<string, DicomUID> series_instance_dict, List<string> dicom_files)
+        {
+            Parallel.ForEach(dicom_files, dicom_file =>
+            {
+                try
+                {
+                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                    file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_uid);
+                    file.Save(dicom_file);
+                }
+                catch
+                {
+                }
+            });
+        }
     }
 }

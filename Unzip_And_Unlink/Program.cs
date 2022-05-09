@@ -6,7 +6,6 @@ using System.IO.Compression;
 using System.Collections.Generic;
 using Unzip_And_Unlink.Services;
 using itk.simple;
-using DicomFolderParser;
 
 namespace Unzip_And_Unlink
 {
@@ -14,8 +13,8 @@ namespace Unzip_And_Unlink
     {
         public bool folder_changed;
         public DicomParser dicomParser;
-        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
-        ///
+        static List<string> default_file_paths = new List<string> { @"O:\BMAnderson\Testing_Unzip_Unlink" };
+        ///static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
 
         static bool IsFileLocked(FileInfo file)
         {
@@ -65,7 +64,7 @@ namespace Unzip_And_Unlink
             }
             Console.WriteLine("Parsing DICOM files...");
             DicomParser dicomParser = new DicomParser();
-            dicomParser.ParseDirectory(directory);
+            dicomParser.GetSeriesInstanceUIDs(directory);
             NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
 
             if (dicomParser.series_instance_uids.Count > 0)
