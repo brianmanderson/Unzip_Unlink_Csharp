@@ -41,6 +41,19 @@ namespace Unzip_And_Unlink
                     continue;
                 }
             }
+            foreach (string dicom_series_instance_uid in series_instance_uids.Keys)
+            {
+                DicomUID new_frame_UID = DicomUIDGenerator.GenerateDerivedFromUUID();
+                foreach (string dicom_file in series_instance_uids[dicom_series_instance_uid])
+                {
+                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                    if (file.Dataset.Contains(DicomTag.FrameOfReferenceUID))
+                    {
+                        file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_frame_UID);
+                        file.Save(dicom_file);
+                    }
+                }
+            }
         }
     }
     class Program
