@@ -18,17 +18,27 @@ namespace Unzip_And_Unlink
         }
         public void UpdateFrameOfReference(string base_directory, string directory)
         {
-            Dictionary<string, List<string>> series_instance_uids = new Dictionary<string, List<string>>();
+            Dictionary<string, VectorString> series_instance_uids = new Dictionary<string, VectorString>();
             VectorString dicom_series_ids = ImageSeriesReader.GetGDCMSeriesIDs(directory);
             foreach (string dicom_series_id in dicom_series_ids)
             {
                 VectorString dicom_names = ImageSeriesReader.GetGDCMSeriesFileNames(directory, dicom_series_id);
                 string dicom_file = dicom_names[0];
-                series_instance_uid = Add_dicom_from_file(dicom_file, image_class_dict, rt_class_dict);
-                foreach (string dicom_name in dicom_names)
+                try
                 {
-                    image_class_dict[series_instance_uid].add_file(dicom_name);
-                    dicom_file_list.Remove(dicom_name.Replace('/', '\\'));
+                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                    if (file.Dataset.Contains(DicomTag.Modality))
+                    {
+                        if (!file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
+                        {
+                            series_instance_uids.Add(file.Dataset.GetString(DicomTag.SeriesInstanceUID), dicom_names);
+                            continue;
+                        }
+                    }
+                }
+                catch
+                {
+                    continue;
                 }
             }
         }
@@ -62,10 +72,6 @@ namespace Unzip_And_Unlink
 
             //file is not locked
             return false;
-        }
-        static void UpdatedNewFrameOfReference(string base_directory, string directory)
-        {
-
         }
         static void NewFrameOfReference(string base_directory, string directory)
         {
