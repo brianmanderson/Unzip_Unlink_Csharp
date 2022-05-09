@@ -10,59 +10,13 @@ using DicomFolderParser;
 
 namespace Unzip_And_Unlink
 {
-    class NewFrameOfReferenceClass
-    {
-        ImageSeriesReader series_reader;
-        public NewFrameOfReferenceClass()
-        {
-            series_reader = new ImageSeriesReader();
-        }
-        public void UpdateFrameOfReference(string base_directory, string directory)
-        {
-            Dictionary<string, VectorString> series_instance_uids = new Dictionary<string, VectorString>();
-            VectorString dicom_series_ids = ImageSeriesReader.GetGDCMSeriesIDs(directory);
-            foreach (string dicom_series_id in dicom_series_ids)
-            {
-                VectorString dicom_names = ImageSeriesReader.GetGDCMSeriesFileNames(directory, dicom_series_id);
-                string dicom_file = dicom_names[0];
-                try
-                {
-                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                    if (file.Dataset.Contains(DicomTag.Modality))
-                    {
-                        if (!file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
-                        {
-                            series_instance_uids.Add(file.Dataset.GetString(DicomTag.SeriesInstanceUID), dicom_names);
-                            continue;
-                        }
-                    }
-                }
-                catch
-                {
-                    continue;
-                }
-            }
-            foreach (string dicom_series_instance_uid in series_instance_uids.Keys)
-            {
-                DicomUID new_frame_UID = DicomUIDGenerator.GenerateDerivedFromUUID();
-                foreach (string dicom_file in series_instance_uids[dicom_series_instance_uid])
-                {
-                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                    if (file.Dataset.Contains(DicomTag.FrameOfReferenceUID))
-                    {
-                        file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_frame_UID);
-                        file.Save(dicom_file);
-                    }
-                }
-            }
-        }
-    }
     class Program
     {
         public bool folder_changed;
         public DicomParser dicomParser;
-        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
-        ///
+        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\BMAnderson\Testing_Unzip_Unlink" };
+
+        ///static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
 
         static bool IsFileLocked(FileInfo file)
         {
@@ -110,25 +64,29 @@ namespace Unzip_And_Unlink
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            DicomParser dicomParser = new DicomParser();
             Console.WriteLine("Parsing DICOM files...");
+            DicomParser dicomParser = new DicomParser();
             dicomParser.ParseDirectory(directory);
+            NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
 
             if (dicomParser.series_instance_uids.Count > 0)
             {
                 Console.WriteLine("Updating frames of reference...");
-            }
-            if (File.Exists(overall_status))
-            {
-                File.Delete(overall_status);
-            }
-            if (had_files)
-            {
+                foreach (string key in dicomParser.series_instance_uids.Keys)
+                {
+                    newFrameOfReferenceClass.ReWriteFrameOfReference(dicomParser.series_instance_uids[key]);
+                }
+
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
                 MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                 Console.WriteLine("Finished!");
                 Console.WriteLine("Running...");
+
+            }
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
             }
         }
         static void NewFrameOfReference(string base_directory, string directory)
@@ -228,7 +186,7 @@ namespace Unzip_And_Unlink
                         MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                         continue;
                     }
-                    NewFrameOfReference(base_directory, directory);
+                    UpdatedFrameOfReference(base_directory, directory);
                 }
             }
 
@@ -360,7 +318,6 @@ namespace Unzip_And_Unlink
                     }
                     catch
                     {
-                        int x = 5;
                     }
                 }
                 else
