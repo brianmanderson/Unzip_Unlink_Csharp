@@ -13,8 +13,9 @@ namespace Unzip_And_Unlink
     {
         public bool folder_changed;
         public DicomParser dicomParser;
-        static List<string> default_file_paths = new List<string> { @"O:\BMAnderson\Testing_Unzip_Unlink" };
-        ///static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        static List<string> default_file_paths = new List<string> { @"\\ucsdhc-varis2\radonc$\00plans\Unzip_Unlink", @"\\ro-ariaimg-v\VA_DATA$\DICOM\Unzip_Unlink_DONOTDELETE" };
+        // static List<string> default_file_paths = new List<string> { @"O:\BMAnderson\Testing_Unzip_Unlink" };
+        ///
 
         static bool IsFileLocked(FileInfo file)
         {
@@ -42,10 +43,11 @@ namespace Unzip_And_Unlink
         }
         static void UpdatedFrameOfReference(string base_directory, string directory)
         {
-            string status_file, overall_status;
+            string status_file, overall_status, parsing_status;
             FolderWatcher folder_watcher_class = new FolderWatcher(directory);
             status_file = Path.Join(directory, "NewFrameOfRef.txt");
             overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
             Thread.Sleep(3000);
             while (folder_watcher_class.Folder_Changed)
             {
@@ -57,19 +59,28 @@ namespace Unzip_And_Unlink
             {
                 return;
             }
+            if (!File.Exists(parsing_status))
+            {
+                FileStream fid_parsing_status = File.OpenWrite(parsing_status);
+                fid_parsing_status.Close();
+            }
+            Console.WriteLine("Parsing DICOM files...");
+            DicomParser dicomParser = new DicomParser();
+            dicomParser.GetSeriesInstanceUIDs(directory);
+            if (File.Exists(parsing_status))
+            {
+                File.Delete(parsing_status);
+            }
+            Console.WriteLine("Updating frames of reference...");
             if (!File.Exists(overall_status))
             {
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            Console.WriteLine("Parsing DICOM files...");
-            DicomParser dicomParser = new DicomParser();
-            dicomParser.GetSeriesInstanceUIDs(directory);
             if (dicomParser.dicom_series_instance_uids.Count > 0)
             {
                 NewFrameOfReferenceClass newFrameOfReferenceClass = new NewFrameOfReferenceClass();
                 newFrameOfReferenceClass.make_series_instance_dict(dicomParser.dicom_series_instance_uids);
-                Console.WriteLine("Updating frames of reference...");
                 newFrameOfReferenceClass.ReWriteFrameOfReference(directory);
                 FileStream fid = File.OpenWrite(status_file);
                 fid.Close();
