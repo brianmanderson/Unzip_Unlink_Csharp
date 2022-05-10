@@ -95,7 +95,7 @@ namespace Unzip_And_Unlink
         static void NewFrameOfReferenceDirectory(string base_directory)
         {
             string[] dicom_files;
-            string status_file, overall_status, parsing_status;
+            string status_file, overall_status, parsing_status, moving_status;
             string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             foreach (string directory in all_directories)
             {
@@ -119,11 +119,13 @@ namespace Unzip_And_Unlink
                         {
                             File.Delete(parsing_status);
                         }
-                        overall_status = Path.Join(base_directory, $"Cannot move_{Path.GetFileName(directory)}_delete in Finished folder.txt");
+                        moving_status = Path.Join(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in Finished folder.txt");
+                        FileStream fid_moving_status = File.OpenWrite(moving_status);
+                        fid_moving_status.Close();
                         MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
-                        if (File.Exists(overall_status))
+                        if (File.Exists(moving_status))
                         {
-                            File.Delete(overall_status);
+                            File.Delete(moving_status);
                         }
                     }
                     else
