@@ -109,7 +109,6 @@ namespace Unzip_And_Unlink
                     status_file = Path.Join(directory, "NewFrameOfRef.txt");
                     if (File.Exists(status_file))
                     {
-                        File.Delete(status_file);
                         MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
                         overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
                         parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
