@@ -99,6 +99,9 @@ namespace Unzip_And_Unlink
             string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             foreach (string directory in all_directories)
             {
+                moving_status = Path.Join(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in Finished folder.txt");
+                overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+                parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
                 if (directory.Contains("Finished"))
                 {
                     continue;
@@ -109,29 +112,39 @@ namespace Unzip_And_Unlink
                     status_file = Path.Join(directory, "NewFrameOfRef.txt");
                     if (File.Exists(status_file))
                     {
-                        overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-                        parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
-                        if (File.Exists(overall_status))
+                        try
                         {
-                            File.Delete(overall_status);
+                            MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
+                            if (File.Exists(moving_status))
+                            {
+                                File.Delete(moving_status);
+                            }
                         }
-                        if (File.Exists(parsing_status))
+                        catch
                         {
-                            File.Delete(parsing_status);
-                        }
-                        moving_status = Path.Join(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in Finished folder.txt");
-                        FileStream fid_moving_status = File.OpenWrite(moving_status);
-                        fid_moving_status.Close();
-                        MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
-                        if (File.Exists(moving_status))
-                        {
-                            File.Delete(moving_status);
+                            if (!File.Exists(moving_status))
+                            {
+                                FileStream fid_moving_status = File.OpenWrite(moving_status);
+                                fid_moving_status.Close();
+                            }
                         }
                     }
                     else
                     {
                         UpdatedFrameOfReference(base_directory, directory);
                     }
+                }
+                if (File.Exists(overall_status))
+                {
+                    File.Delete(overall_status);
+                }
+                if (File.Exists(parsing_status))
+                {
+                    File.Delete(parsing_status);
+                }
+                if (File.Exists(moving_status))
+                {
+                    File.Delete(moving_status);
                 }
             }
 
