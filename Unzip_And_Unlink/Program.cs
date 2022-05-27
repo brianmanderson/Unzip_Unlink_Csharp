@@ -84,7 +84,7 @@ namespace Unzip_And_Unlink
                 newFrameOfReferenceClass.ReWriteFrameOfReference(directory);
                 FileStream fid_status = File.OpenWrite(status_file);
                 fid_status.Close();
-                MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
+                MoveFolder(moving_directory: Path.Join(base_directory, "NewFinished"), current_folder: directory);
                 Console.WriteLine("Finished!");
             }
             if (File.Exists(overall_status))
@@ -99,10 +99,10 @@ namespace Unzip_And_Unlink
             string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
             foreach (string directory in all_directories)
             {
-                moving_status = Path.Join(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in Finished folder.txt");
+                moving_status = Path.Join(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in NewFinished folder.txt");
                 overall_status = Path.Join(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
                 parsing_status = Path.Join(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
-                if (directory.Contains("Finished"))
+                if (directory.Contains("NewFinished"))
                 {
                     continue;
                 }
@@ -114,7 +114,7 @@ namespace Unzip_And_Unlink
                     {
                         try
                         {
-                            MoveFolder(moving_directory: Path.Join(base_directory, "Finished"), current_folder: directory);
+                            MoveFolder(moving_directory: Path.Join(base_directory, "NewFinished"), current_folder: directory);
                             if (File.Exists(moving_status))
                             {
                                 File.Delete(moving_status);
@@ -250,11 +250,8 @@ namespace Unzip_And_Unlink
         }
         static void CheckDownPath(string file_path)
         {
-            if (Directory.Exists(file_path))
-            {
-                UnzipFiles(file_path);
-                NewFrameOfReferenceDirectory(file_path);
-            }
+            UnzipFiles(file_path);
+            NewFrameOfReferenceDirectory(file_path);
         }
         static void Main(string[] args)
         {
@@ -305,14 +302,21 @@ namespace Unzip_And_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    Thread.Sleep(3000);
-                    try
+                    if (Directory.Exists(file_path))
                     {
-                        CheckDownPath(file_path);
-                    }
-                    catch
-                    {
-                        continue;
+                        if (File.Exists(Path.Join(file_path, "Terminate.txt")))
+                        {
+                            return;
+                        }
+                        Thread.Sleep(3000);
+                        try
+                        {
+                            CheckDownPath(file_path);
+                        }
+                        catch
+                        {
+                            continue;
+                        }
                     }
                     // down_folder(file_path);
                 }
