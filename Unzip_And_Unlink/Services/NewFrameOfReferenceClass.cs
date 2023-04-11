@@ -21,10 +21,10 @@ namespace Unzip_And_Unlink.Services
             DicomUID new_uid;
             foreach (string series_instance_uid in series_instance_uids)
             {
-                if (!this.series_instance_dict.ContainsKey(series_instance_uid))
+                if (!series_instance_dict.ContainsKey(series_instance_uid))
                 {
                     new_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
-                    this.series_instance_dict.Add(series_instance_uid, new_uid);
+                    series_instance_dict.Add(series_instance_uid, new_uid);
                 }
             }
         }
