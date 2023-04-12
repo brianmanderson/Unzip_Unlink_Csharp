@@ -14,7 +14,7 @@ namespace NewFrameOfReferenceClass
         public Dictionary<string, VectorString> series_instance_uids_dict = new Dictionary<string, VectorString>();
         public VectorString dicom_series_instance_uids;
         Dictionary<string, DicomUID> series_instance_dict = new Dictionary<string, DicomUID>();
-        private ImageFileReader image_reader;
+        private ImageFileReader image_reader = new ImageFileReader();
         public FrameOfReferenceClass()
         {
         }

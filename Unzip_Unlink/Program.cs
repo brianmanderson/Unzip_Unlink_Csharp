@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FolderWatcher;
 using NewFrameOfReferenceClass;
+using UnzipClass;
 
 namespace Unzip_Unlink
 {
@@ -190,7 +191,6 @@ namespace Unzip_Unlink
                 // First lets unzip the life images
                 foreach (string file_path in file_paths)
                 {
-                    continue;
                     if (Directory.Exists(file_path))
                     {
                         if (File.Exists(Path.Combine(file_path, "Terminate.txt")))
@@ -200,7 +200,7 @@ namespace Unzip_Unlink
                         Thread.Sleep(3000);
                         try
                         {
-                            //Utils.UnzipFiles(file_path);
+                            UnzipUtils.UnzipFiles(file_path);
                         }
                         catch
                         {
