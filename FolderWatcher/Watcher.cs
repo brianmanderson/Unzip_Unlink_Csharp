@@ -1,12 +1,13 @@
 ﻿using System;
-using System.Threading;
-using System.IO;
-using System.IO.Compression;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace Unzip_And_Unlink.Services
+namespace FolderWatcher
 {
-    public class FolderWatcher
+    public class Watcher
     {
         private bool folder_changed;
         public bool Folder_Changed
@@ -20,7 +21,7 @@ namespace Unzip_And_Unlink.Services
                 folder_changed = value;
             }
         }
-        public FolderWatcher(string directory)
+        public Watcher(string directory)
         {
             FileSystemWatcher file_watcher = new FileSystemWatcher(directory);
             file_watcher.NotifyFilter = NotifyFilters.Attributes
