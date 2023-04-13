@@ -1,4 +1,5 @@
-﻿using FolderWatcher;
+﻿using FellowOakDicom;
+using FolderWatcher;
 using NewFrameOfReferenceClass;
 using System;
 using System.Collections.Generic;
@@ -57,9 +58,7 @@ namespace Unzip_Unlink
             }
             Console.WriteLine("Parsing DICOM files...");
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-            Console.WriteLine("Characterizing");
             dicomParser.Characterize_Directory(directory);
-            Console.WriteLine("Done");
             if (File.Exists(parsing_status))
             {
                 File.Delete(parsing_status);
@@ -80,10 +79,56 @@ namespace Unzip_Unlink
                 File.Delete(overall_status);
             }
         }
+        public static void RunOnDirectory(string base_directory, string directory)
+        {
+            string status_file, overall_status, parsing_status, moving_status;
+            string[] dicom_files;
+            moving_status = Path.Combine(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in NewFinished folder.txt");
+            overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
+            dicom_files = Directory.GetFiles(directory);
+            if (dicom_files.Length > 0)
+            {
+                status_file = Path.Combine(directory, "NewFrameOfRef.txt");
+                if (File.Exists(status_file))
+                {
+                    try
+                    {
+                        MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
+                        if (File.Exists(moving_status))
+                        {
+                            File.Delete(moving_status);
+                        }
+                    }
+                    catch
+                    {
+                        if (!File.Exists(moving_status))
+                        {
+                            FileStream fid_moving_status = File.OpenWrite(moving_status);
+                            fid_moving_status.Close();
+                        }
+                    }
+                }
+                else
+                {
+                    UpdatedFrameOfReference(base_directory, directory);
+                }
+            }
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
+            }
+            if (File.Exists(parsing_status))
+            {
+                File.Delete(parsing_status);
+            }
+            if (File.Exists(moving_status))
+            {
+                File.Delete(moving_status);
+            }
+        }
         public static void Runner(string base_directory)
         {
-            string[] dicom_files;
-            string status_file, overall_status, parsing_status, moving_status;
             foreach (string direct in Directory.GetDirectories(base_directory))
             {
                 if (direct.Contains("NewFinished"))
@@ -91,51 +136,15 @@ namespace Unzip_Unlink
                     continue;
                 }
                 string[] all_directories = Directory.GetDirectories(direct, "*", SearchOption.AllDirectories);
-                foreach (string directory in all_directories)
+                if (all_directories.Length == 0)
                 {
-
-                    moving_status = Path.Combine(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in NewFinished folder.txt");
-                    overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-                    parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
-                    dicom_files = Directory.GetFiles(directory);
-                    if (dicom_files.Length > 0)
+                    RunOnDirectory(base_directory, direct);
+                }
+                else
+                {
+                    foreach (string directory in all_directories)
                     {
-                        status_file = Path.Combine(directory, "NewFrameOfRef.txt");
-                        if (File.Exists(status_file))
-                        {
-                            try
-                            {
-                                MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
-                                if (File.Exists(moving_status))
-                                {
-                                    File.Delete(moving_status);
-                                }
-                            }
-                            catch
-                            {
-                                if (!File.Exists(moving_status))
-                                {
-                                    FileStream fid_moving_status = File.OpenWrite(moving_status);
-                                    fid_moving_status.Close();
-                                }
-                            }
-                        }
-                        else
-                        {
-                            UpdatedFrameOfReference(base_directory, directory);
-                        }
-                    }
-                    if (File.Exists(overall_status))
-                    {
-                        File.Delete(overall_status);
-                    }
-                    if (File.Exists(parsing_status))
-                    {
-                        File.Delete(parsing_status);
-                    }
-                    if (File.Exists(moving_status))
-                    {
-                        File.Delete(moving_status);
+                        RunOnDirectory(base_directory, directory);
                     }
                 }
             }
