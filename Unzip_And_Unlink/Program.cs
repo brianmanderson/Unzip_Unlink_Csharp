@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Collections.Generic;
 using Unzip_And_Unlink.Services;
 using itk.simple;
+using DicomFolderParser;
 
 namespace Unzip_And_Unlink
 {

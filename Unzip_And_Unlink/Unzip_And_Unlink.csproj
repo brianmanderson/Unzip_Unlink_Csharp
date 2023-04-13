@@ -7,18 +7,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="..\..\..\SimpleITK\SimpleITKCSharpNative.dll" Link="SimpleITKCSharpNative.dll">
+    <Content Include="..\..\SimpleITK\SimpleITKCSharpNative.dll" Link="SimpleITKCSharpNative.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BMAnderson.Util.DicomFolderParser" Version="1.0.1" />
     <PackageReference Include="fo-dicom" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="SimpleITKCSharpManaged">
-      <HintPath>..\..\..\SimpleITK\SimpleITKCSharpManaged.dll</HintPath>
+      <HintPath>..\..\SimpleITK\SimpleITKCSharpManaged.dll</HintPath>
     </Reference>
   </ItemGroup>
 
