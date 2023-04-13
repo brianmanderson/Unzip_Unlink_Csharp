@@ -9,6 +9,15 @@ using System.IO;
 
 namespace NewFrameOfReferenceClass
 {
+    public class DummyClass
+    {
+        private static void Dummy()
+        {
+            Action<Type> noop = _ => { };
+            var dummy = typeof(SimpleITK);
+            noop(dummy);
+        }
+    }
     public class FrameOfReferenceClass
     {
         public Dictionary<string, VectorString> series_instance_uids_dict = new Dictionary<string, VectorString>();

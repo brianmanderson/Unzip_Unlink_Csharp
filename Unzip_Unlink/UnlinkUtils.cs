@@ -57,7 +57,9 @@ namespace Unzip_Unlink
             }
             Console.WriteLine("Parsing DICOM files...");
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
+            Console.WriteLine("Characterizing");
             dicomParser.Characterize_Directory(directory);
+            Console.WriteLine("Done");
             if (File.Exists(parsing_status))
             {
                 File.Delete(parsing_status);
@@ -82,55 +84,59 @@ namespace Unzip_Unlink
         {
             string[] dicom_files;
             string status_file, overall_status, parsing_status, moving_status;
-            string[] all_directories = Directory.GetDirectories(base_directory, "*", SearchOption.AllDirectories);
-            foreach (string directory in all_directories)
+            foreach (string direct in Directory.GetDirectories(base_directory))
             {
-                if (directory.Contains("NewFinished"))
+                if (direct.Contains("NewFinished"))
                 {
                     continue;
                 }
-                moving_status = Path.Combine(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in NewFinished folder.txt");
-                overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-                parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
-                dicom_files = Directory.GetFiles(directory);
-                if (dicom_files.Length > 0)
+                string[] all_directories = Directory.GetDirectories(direct, "*", SearchOption.AllDirectories);
+                foreach (string directory in all_directories)
                 {
-                    status_file = Path.Combine(directory, "NewFrameOfRef.txt");
-                    if (File.Exists(status_file))
+
+                    moving_status = Path.Combine(base_directory, $"Cannot move '{Path.GetFileName(directory)}' delete in NewFinished folder.txt");
+                    overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+                    parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
+                    dicom_files = Directory.GetFiles(directory);
+                    if (dicom_files.Length > 0)
                     {
-                        try
+                        status_file = Path.Combine(directory, "NewFrameOfRef.txt");
+                        if (File.Exists(status_file))
                         {
-                            MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
-                            if (File.Exists(moving_status))
+                            try
                             {
-                                File.Delete(moving_status);
+                                MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
+                                if (File.Exists(moving_status))
+                                {
+                                    File.Delete(moving_status);
+                                }
+                            }
+                            catch
+                            {
+                                if (!File.Exists(moving_status))
+                                {
+                                    FileStream fid_moving_status = File.OpenWrite(moving_status);
+                                    fid_moving_status.Close();
+                                }
                             }
                         }
-                        catch
+                        else
                         {
-                            if (!File.Exists(moving_status))
-                            {
-                                FileStream fid_moving_status = File.OpenWrite(moving_status);
-                                fid_moving_status.Close();
-                            }
+                            UpdatedFrameOfReference(base_directory, directory);
                         }
                     }
-                    else
+                    if (File.Exists(overall_status))
                     {
-                        UpdatedFrameOfReference(base_directory, directory);
+                        File.Delete(overall_status);
                     }
-                }
-                if (File.Exists(overall_status))
-                {
-                    File.Delete(overall_status);
-                }
-                if (File.Exists(parsing_status))
-                {
-                    File.Delete(parsing_status);
-                }
-                if (File.Exists(moving_status))
-                {
-                    File.Delete(moving_status);
+                    if (File.Exists(parsing_status))
+                    {
+                        File.Delete(parsing_status);
+                    }
+                    if (File.Exists(moving_status))
+                    {
+                        File.Delete(moving_status);
+                    }
                 }
             }
         }

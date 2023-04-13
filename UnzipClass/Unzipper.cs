@@ -61,7 +61,6 @@ namespace UnzipClass
                     Directory.CreateDirectory(output_dir);
                     Console.WriteLine("Extracting...");
                     ZipFile.ExtractToDirectory(zip_file, output_dir);
-                    Console.WriteLine("Renaming Folder...");
                     File.Delete(zip_file);
                 }
             }
@@ -82,7 +81,6 @@ namespace UnzipClass
                 Directory.CreateDirectory(output_dir);
                 Console.WriteLine("Extracting...");
                 ZipFile.ExtractToDirectory(zip_file, output_dir);
-                Console.WriteLine("Renaming Folder...");
                 File.Delete(zip_file);
             }
         }
