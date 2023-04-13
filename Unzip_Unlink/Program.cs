@@ -95,7 +95,6 @@ namespace Unzip_Unlink
                         {
                             return;
                         }
-                        Thread.Sleep(3000);
                         try
                         {
                             UnlinkUtils.Runner(file_path);
@@ -106,6 +105,7 @@ namespace Unzip_Unlink
                         }
                     }
                 }
+                Thread.Sleep(3000);
             }
         }
     }
