@@ -124,6 +124,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UnlinkUtils.cs" />
     <Compile Include="UnzipUtils.cs" />
   </ItemGroup>
   <ItemGroup>
