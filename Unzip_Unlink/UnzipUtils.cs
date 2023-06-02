@@ -43,9 +43,8 @@ namespace Unzip_Unlink
         {
             string overall_status;
             FileInfo zip_file_info = new FileInfo(zip_file);
-            Thread.Sleep(3000);
             int tries = 0;
-            Thread.Sleep(3000);
+            Thread.Sleep(5000);
             while (Unzipper.IsFileLocked(zip_file_info))
             {
                 Console.WriteLine("Waiting for file to be fully transferred...");
