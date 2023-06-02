@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,15 +28,11 @@ namespace Unzip_Unlink
                 File.Delete(status_file);
             }
         }
-        public static void UpdatedFrameOfReference(string base_directory, string directory)
+        public static bool WatchFolder(string directory)
         {
-            string status_file, overall_status, parsing_status;
             Watcher folder_watcher_class = new Watcher(directory);
-            status_file = Path.Combine(directory, "NewFrameOfRef.txt");
-            overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
-            parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
-            int counter = 0;
             Thread.Sleep(5000);
+            int counter = 0;
             while (folder_watcher_class.Folder_Changed)
             {
                 counter++;
@@ -44,8 +41,21 @@ namespace Unzip_Unlink
                 Thread.Sleep(5000);
                 if (counter > 3)
                 {
-                    return;
+                    return false;
                 }
+            }
+            return true;
+        }
+        public static void UpdatedFrameOfReference(string base_directory, string directory)
+        {
+            string status_file, overall_status, parsing_status;
+
+            status_file = Path.Combine(directory, "NewFrameOfRef.txt");
+            overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
+            if (!WatchFolder(directory))
+            {
+                return;
             }
             if (File.Exists(status_file))
             {

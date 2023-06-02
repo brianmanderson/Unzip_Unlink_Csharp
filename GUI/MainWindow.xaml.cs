@@ -61,11 +61,29 @@ namespace GUI
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 zip_file = dialog.FileName;
-                UnzipLabel.Content = $"Unzipping: {zip_file}";
+                string file_name = Path.GetFileName(zip_file);
+                string base_directory = Path.GetDirectoryName(file_name);
+                UnzipLabel.Content = $"Unzipping: {file_name}";
                 file_selected = true;
                 Unzipper.UnzipFile(zip_file);
-                string file_name = Path.GetFileName(zip_file);
-                string output_dir = Path.Combine(Path.GetDirectoryName(zip_file), file_name.Substring(0, file_name.Length - 4));
+                string output_dir = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
+                UnlinkUtils.RunOnDirectory(base_directory, output_dir);
+            }
+        }
+
+        private void UnlinkButton_Click(object sender, RoutedEventArgs e)
+        {
+            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
+            dialog.InitialDirectory = ".";
+            dialog.IsFolderPicker = true;
+            file_selected = false;
+            UnzipLabel.Content = "";
+            if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
+            {
+                string mr_directory = dialog.FileName;
+                file_selected = true;
+                Unzipper.UnzipFile(zip_file);
+                UnlinkUtils.RunOnDirectory(Path.Combine(mr_directory, ".."), mr_directory);
             }
         }
     }
