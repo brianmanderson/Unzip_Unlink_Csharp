@@ -10,7 +10,7 @@ using FellowOakDicom;
 
 namespace Unzip_Unlink
 {
-    internal class UnzipUtils
+    public class UnzipUtils
     {
         public static void RenameFolder(string unzipped_file_directory)
         {

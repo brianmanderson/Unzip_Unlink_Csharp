@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Unzip_Unlink
 {
-    internal class UnlinkUtils
+    public class UnlinkUtils
     {
         public static void MoveFolder(string moving_directory, string current_folder)
         {
