@@ -49,7 +49,6 @@ namespace Unzip_Unlink
         public static void UpdatedFrameOfReference(string base_directory, string directory)
         {
             string status_file, overall_status, parsing_status;
-
             status_file = Path.Combine(directory, "NewFrameOfRef.txt");
             overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
             parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");

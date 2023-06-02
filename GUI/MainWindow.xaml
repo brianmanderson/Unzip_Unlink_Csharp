@@ -13,8 +13,8 @@
         <Label Name="UnzipLabel" Content="" HorizontalAlignment="Left" Margin="233,75,0,0" VerticalAlignment="Top" Height="51" Width="258"/>
         <Label x:Name="UnzipUnlinkLabel" Content="" HorizontalAlignment="Left" Margin="233,140,0,0" VerticalAlignment="Top" Height="52" Width="258"/>
         <Label x:Name="UnlinkLabel" Content="" HorizontalAlignment="Left" Margin="233,217,0,0" VerticalAlignment="Top" Height="51" Width="258"/>
-        <Label Content="This tool is created to help Unzip files, and break the inherent registration of MR files." HorizontalAlignment="Left" Margin="42,10,0,0" VerticalAlignment="Top" Height="27" Width="728"/>
-        <Image HorizontalAlignment="Left" Height="90" Margin="395,273,0,0" VerticalAlignment="Top" Width="68" Source="/GitHub.JPG"/>
+        <Label Content="This tool is created to help Unzip files, and break the inherent registration of MR files." HorizontalAlignment="Left" Margin="42,24,0,0" VerticalAlignment="Top" Height="26" Width="488"/>
+        <Image HorizontalAlignment="Left" Height="74" Margin="395,273,0,0" VerticalAlignment="Top" Width="68" Source="/GitHub.JPG"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,303,0,0" TextWrapping="Wrap" Text="For issues please go to" VerticalAlignment="Top" Width="332"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,319,0,0" TextWrapping="Wrap" Text="https://github.com/brianmanderson/Unzip_Unlink_Csharp" VerticalAlignment="Top" Width="332"/>
     </Grid>

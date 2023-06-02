@@ -186,5 +186,13 @@
       <Name>Unzip_Unlink</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="GitHub.JPG" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Pictures\GitHub.JPG">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
