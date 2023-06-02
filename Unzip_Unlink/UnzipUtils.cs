@@ -44,7 +44,6 @@ namespace Unzip_Unlink
             string overall_status;
             FileInfo zip_file_info = new FileInfo(zip_file);
             Thread.Sleep(3000);
-            bool move_on = false;
             int tries = 0;
             Thread.Sleep(3000);
             while (Unzipper.IsFileLocked(zip_file_info))
@@ -54,14 +53,9 @@ namespace Unzip_Unlink
                 Thread.Sleep(3000);
                 if (tries > 2)
                 {
-                    move_on = true;
-                    break;
+                    Console.WriteLine("Taking too long, will come back and try again...");
+                    return;
                 }
-            }
-            if (move_on)
-            {
-                Console.WriteLine("Taking too long, will come back and try again...");
-                return;
             }
             overall_status = Path.Combine(zip_file_directory, $"ExtractingZip.txt");
             if (!File.Exists(overall_status))
