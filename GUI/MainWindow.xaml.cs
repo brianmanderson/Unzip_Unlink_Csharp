@@ -41,14 +41,15 @@ namespace GUI
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
             file_selected = false;
-            UnzipLabel.Content = "";
+            StatusLabel.Content = "";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 zip_file = dialog.FileName;
                 string zip_directory = Path.GetDirectoryName(zip_file);
-                UnzipLabel.Content = $"Unzipping: {zip_file}";
+                StatusLabel.Content = $"Unzipping: {zip_file}";
                 file_selected = true;
                 UnzipUtils.UnzipFile(zip_file, zip_directory);
+                StatusLabel.Content = $"Finished!";
             }
         }
 
@@ -62,20 +63,20 @@ namespace GUI
             {
                 zip_file = dialog.FileName;
                 string file_name = Path.GetFileName(zip_file);
-                string base_directory = Path.GetDirectoryName(file_name);
-                UnzipUnlinkLabel.Content = $"Unzipping: {file_name}";
+                string base_directory = Path.GetDirectoryName(dialog.FileName);
+                StatusLabel.Content = $"Unzipping: {file_name}";
                 file_selected = true;
                 Unzipper.UnzipFile(zip_file);
-                UnzipUnlinkLabel.Content = $"Unlinking MR";
+                StatusLabel.Content = $"Unlinking MR";
                 string selected_folder = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
                     FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    UnzipUnlinkLabel.Content = "Unlinking files";
+                    StatusLabel.Content = "Unlinking files";
                     dicomParser.Characterize_Directory(selected_folder);
                     dicomParser.ReWriteFrameOfReference();
-                    UnzipUnlinkLabel.Content = "Completed!";
+                    StatusLabel.Content = "Completed!";
                 }
             }
         }
@@ -85,7 +86,7 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = true;
-            UnzipLabel.Content = "";
+            StatusLabel.Content = "";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 string selected_folder = dialog.FileName;
@@ -93,10 +94,10 @@ namespace GUI
                 if (run)
                 {
                     FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    UnlinkLabel.Content = "Unlinking files";
+                    StatusLabel.Content = "Unlinking files";
                     dicomParser.Characterize_Directory(selected_folder);
                     dicomParser.ReWriteFrameOfReference();
-                    UnlinkLabel.Content = "Completed!";
+                    StatusLabel.Content = "Completed!";
                 }
             }
         }

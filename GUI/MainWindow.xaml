@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GUI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="380" Width="567">
+        Title="MainWindow" Height="400" Width="567">
     <Grid>
         <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="42,75,0,0" VerticalAlignment="Top" Height="51" Width="148" Click="UnzipButton_Click"/>
         <Button x:Name="UnlinkButton" Content="Unlink MR in Folder" HorizontalAlignment="Left" Margin="42,217,0,0" VerticalAlignment="Top" Height="51" Width="148" Click="UnlinkButton_Click"/>
