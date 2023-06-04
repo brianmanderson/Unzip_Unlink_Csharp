@@ -48,7 +48,7 @@ namespace GUI
         public MainWindow()
         {
             InitializeComponent();
-            LabelText = "Test";
+            LabelText = "Status:";
             Binding StatusBinding = new Binding("LabelText");
             StatusBinding.Source = this;
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
@@ -58,14 +58,14 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
-            StatusLabel.Content = "";
+            LabelText = "";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 zip_file = dialog.FileName;
                 string zip_directory = Path.GetDirectoryName(zip_file);
-                StatusLabel.Content = $"Unzipping: {Path.GetFileName(zip_file)}!";
+                LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
                 UnzipUtils.UnzipFile(zip_file, zip_directory);
-                StatusLabel.Content = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
+                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             }
         }
 
@@ -79,18 +79,18 @@ namespace GUI
                 zip_file = dialog.FileName;
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
-                StatusLabel.Content = $"Unzipping: {file_name}";
+                LabelText = $"Unzipping: {file_name}";
                 Unzipper.UnzipFile(zip_file);
-                StatusLabel.Content = $"Unlinking MR";
+                LabelText = $"Unlinking MR";
                 string selected_folder = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
                     FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    StatusLabel.Content = "Unlinking files";
+                    LabelText = "Unlinking files";
                     dicomParser.Characterize_Directory(selected_folder);
                     dicomParser.ReWriteFrameOfReference();
-                    StatusLabel.Content = "Completed!";
+                    LabelText = "Completed!";
                 }
             }
         }
@@ -108,10 +108,10 @@ namespace GUI
                 if (run)
                 {
                     FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    StatusLabel.Content = "Unlinking files";
+                    LabelText = "Unlinking files";
                     dicomParser.Characterize_Directory(selected_folder);
                     dicomParser.ReWriteFrameOfReference();
-                    StatusLabel.Content = "Completed!";
+                    LabelText = "Completed!";
                 }
             }
         }
