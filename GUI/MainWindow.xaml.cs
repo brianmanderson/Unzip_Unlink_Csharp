@@ -29,6 +29,7 @@ namespace GUI
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private string labelText;
+        private bool file_selected;
         public string LabelText
         {
             get { return labelText; }
@@ -58,9 +59,11 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
-            LabelText = "";
+            file_selected = false;
+            LabelText = "Unzipping...";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
+                file_selected = true;
                 zip_file = dialog.FileName;
                 string zip_directory = Path.GetDirectoryName(zip_file);
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
@@ -74,8 +77,11 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
+            file_selected = false;
+            LabelText = "Unzipping...";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
+                file_selected = true;
                 zip_file = dialog.FileName;
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
@@ -101,6 +107,7 @@ namespace GUI
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = true;
             StatusLabel.Content = "";
+            LabelText = "Unlinking...";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 string selected_folder = dialog.FileName;
