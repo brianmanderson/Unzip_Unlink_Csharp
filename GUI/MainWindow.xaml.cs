@@ -44,7 +44,6 @@ namespace GUI
                 PropertyChanged(this, new PropertyChangedEventArgs(property));
         }
         public event PropertyChangedEventHandler PropertyChanged;
-        bool file_selected;
         string zip_file;
         public MainWindow()
         {
@@ -59,16 +58,14 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
-            file_selected = false;
             StatusLabel.Content = "";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 zip_file = dialog.FileName;
                 string zip_directory = Path.GetDirectoryName(zip_file);
-                LabelText = $"Unzipping: {zip_file}";
-                file_selected = true;
+                StatusLabel.Content = $"Unzipping: {Path.GetFileName(zip_file)}!";
                 UnzipUtils.UnzipFile(zip_file, zip_directory);
-                LabelText = $"Finished!";
+                StatusLabel.Content = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             }
         }
 
@@ -77,14 +74,12 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
-            file_selected = false;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 zip_file = dialog.FileName;
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
                 StatusLabel.Content = $"Unzipping: {file_name}";
-                file_selected = true;
                 Unzipper.UnzipFile(zip_file);
                 StatusLabel.Content = $"Unlinking MR";
                 string selected_folder = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
