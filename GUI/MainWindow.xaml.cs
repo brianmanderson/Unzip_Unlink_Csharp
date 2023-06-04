@@ -26,15 +26,34 @@ namespace GUI
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, INotifyPropertyChanged
     {
+        private string labelText;
+        public string LabelText
+        {
+            get { return labelText; }
+            set
+            {
+                labelText = value;
+                OnPropertyChanged("LabelText");
+            }
+        }
+        protected virtual void OnPropertyChanged(string property)
+        {
+            if (PropertyChanged != null)
+                PropertyChanged(this, new PropertyChangedEventArgs(property));
+        }
+        public event PropertyChangedEventHandler PropertyChanged;
         bool file_selected;
         string zip_file;
         public MainWindow()
         {
             InitializeComponent();
+            LabelText = "Test";
+            Binding StatusBinding = new Binding("LabelText");
+            StatusBinding.Source = this;
+            StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
         }
-
         private void UnzipButton_Click(object sender, RoutedEventArgs e)
         {
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
@@ -46,10 +65,10 @@ namespace GUI
             {
                 zip_file = dialog.FileName;
                 string zip_directory = Path.GetDirectoryName(zip_file);
-                StatusLabel.Content = $"Unzipping: {zip_file}";
+                LabelText = $"Unzipping: {zip_file}";
                 file_selected = true;
                 UnzipUtils.UnzipFile(zip_file, zip_directory);
-                StatusLabel.Content = $"Finished!";
+                LabelText = $"Finished!";
             }
         }
 
