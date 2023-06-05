@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
 using System.IO;
+using System.Windows;
+using System.Windows.Forms;
 
 namespace NewFrameOfReferenceClass
 {
@@ -43,6 +45,46 @@ namespace NewFrameOfReferenceClass
                 {
                     DicomUID new_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
                     series_instance_dict.Add(series_instance_uid, new_uid);
+                }
+            }
+        }
+
+        public void ReWriteFrameOfReference(ProgressBar progressBar)
+        {
+            foreach (string dicom_series_instance_uid in dicom_series_instance_uids)
+            {
+                string modality;
+                VectorString dicom_names = series_instance_uids_dict[dicom_series_instance_uid];
+                DicomUID uid = series_instance_dict[dicom_series_instance_uid];
+                image_reader.SetFileName(dicom_names[0]);
+                try
+                {
+                    image_reader.ReadImageInformation();
+                    modality = image_reader.GetMetaData("0008|0060");
+                }
+                catch
+                {
+                    modality = "null";
+                    continue;
+                }
+                if (modality.ToLower().Contains("mr"))
+                {
+                    int i = 0;
+                    int total = dicom_names.Count;
+                    Parallel.ForEach(dicom_names, dicom_file =>
+                    {
+                        try
+                        {
+                            i++;
+                            progressBar.Value = i / total * 100;
+                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                            file.Save(dicom_file);
+                        }
+                        catch
+                        {
+                        }
+                    });
                 }
             }
         }

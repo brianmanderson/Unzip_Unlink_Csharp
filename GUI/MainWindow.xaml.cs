@@ -60,13 +60,17 @@ namespace GUI
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
             file_selected = false;
-            LabelText = "Unzipping...";
+            string zip_file = "";
+            ProgressBar.Visibility = Visibility.Hidden;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 file_selected = true;
                 zip_file = dialog.FileName;
-                string zip_directory = Path.GetDirectoryName(zip_file);
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
+            }
+            if (file_selected)
+            {
+                string zip_directory = Path.GetDirectoryName(zip_file);
                 UnzipUtils.UnzipFile(zip_file, zip_directory);
                 LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             }
@@ -78,10 +82,12 @@ namespace GUI
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
             file_selected = false;
-            LabelText = "Unzipping...";
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 file_selected = true;
+            }
+            if (file_selected)
+            {
                 zip_file = dialog.FileName;
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
@@ -92,6 +98,7 @@ namespace GUI
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
+                    ProgressBar.Visibility = Visibility.Visible;
                     FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
                     LabelText = "Unlinking files";
                     dicomParser.Characterize_Directory(selected_folder);
@@ -106,9 +113,12 @@ namespace GUI
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = true;
-            StatusLabel.Content = "";
-            LabelText = "Unlinking...";
+            file_selected = false;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
+            {
+                file_selected = true;
+            }
+            if (file_selected)
             {
                 string selected_folder = dialog.FileName;
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
