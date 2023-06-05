@@ -82,7 +82,6 @@ namespace GUI
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ProgressBar.Visibility = Visibility.Visible;
                 FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
                 dicomParser.Characterize_Directory(selected_folder);
                 dicomParser.ReWriteFrameOfReference();
