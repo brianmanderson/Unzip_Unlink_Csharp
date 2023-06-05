@@ -20,6 +20,7 @@ using System.Collections.ObjectModel;
 using Unzip_Unlink;
 using UnzipClass;
 using NewFrameOfReferenceClass;
+using System.Threading.Tasks;
 
 namespace GUI
 {
@@ -54,30 +55,65 @@ namespace GUI
             StatusBinding.Source = this;
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
         }
-        private void UnzipButton_Click(object sender, RoutedEventArgs e)
+        private void DisableButtons()
         {
+            UnzipandUnlinkButton.IsEnabled = false;
+            UnzipButton.IsEnabled = false;
+            UnlinkButton.IsEnabled = false;
+        }
+        private void EnableButtons()
+        {
+            UnzipandUnlinkButton.IsEnabled = true;
+            UnzipButton.IsEnabled = true;
+            UnlinkButton.IsEnabled = true;
+        }
+        private async Task Unzip(string zip_file)
+        {
+            await Task.Run(() =>
+            {
+                LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
+                string zip_directory = Path.GetDirectoryName(zip_file);
+                UnzipUtils.UnzipFile(zip_file, zip_directory);
+                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
+            });
+        }
+        private async Task Unlink(string selected_folder)
+        {
+            await Task.Run(() =>
+            {
+                LabelText = "Unlinking files";
+                ProgressBar.Visibility = Visibility.Visible;
+                FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
+                dicomParser.Characterize_Directory(selected_folder);
+                dicomParser.ReWriteFrameOfReference();
+                LabelText = "Completed!";
+            });
+        }
+        private async void UnzipButton_Click(object sender, RoutedEventArgs e)
+        {
+            DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
             file_selected = false;
-            string zip_file = "";
             ProgressBar.Visibility = Visibility.Hidden;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 file_selected = true;
-                zip_file = dialog.FileName;
-                LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
             }
-            if (file_selected)
+            if (!file_selected)
             {
-                string zip_directory = Path.GetDirectoryName(zip_file);
-                UnzipUtils.UnzipFile(zip_file, zip_directory);
-                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
+                EnableButtons();
+                return;
             }
+            zip_file = dialog.FileName;
+            await Unzip(zip_file);
+            EnableButtons();
         }
 
-        private void UnzipandUnlinkButton_Click(object sender, RoutedEventArgs e)
+        private async void UnzipandUnlinkButton_Click(object sender, RoutedEventArgs e)
         {
+            DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
@@ -92,24 +128,21 @@ namespace GUI
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
                 LabelText = $"Unzipping: {file_name}";
-                Unzipper.UnzipFile(zip_file);
+                await Unzip(zip_file);
                 LabelText = $"Unlinking MR";
                 string selected_folder = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
-                    ProgressBar.Visibility = Visibility.Visible;
-                    FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    LabelText = "Unlinking files";
-                    dicomParser.Characterize_Directory(selected_folder);
-                    dicomParser.ReWriteFrameOfReference();
-                    LabelText = "Completed!";
+                    await Unlink(selected_folder);
                 }
             }
+            EnableButtons();
         }
 
-        private void UnlinkButton_Click(object sender, RoutedEventArgs e)
+        private async void UnlinkButton_Click(object sender, RoutedEventArgs e)
         {
+            DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = true;
@@ -124,13 +157,14 @@ namespace GUI
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
-                    FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                    LabelText = "Unlinking files";
-                    dicomParser.Characterize_Directory(selected_folder);
-                    dicomParser.ReWriteFrameOfReference();
-                    LabelText = "Completed!";
+                    await Unlink(selected_folder);
+                }
+                else
+                {
+                    LabelText = "Files changed while watching... please try again";
                 }
             }
+            EnableButtons();
         }
     }
 }
