@@ -47,12 +47,22 @@ namespace GUI
             get { return progressCounterfolders; }
             set
             {
-                progressCounterfiles = value;
+                progressCounterfolders = value;
                 OnPropertyChanged("ProgressCounterfolders");
             }
         }
-        private string labelText;
         private bool file_selected;
+        private string progressText;
+        public string ProgressText
+        {
+            get { return progressText; }
+            set
+            {
+                progressText = value;
+                OnPropertyChanged("ProgressText");
+            }
+        }
+        private string labelText;
         public string LabelText
         {
             get { return labelText; }
@@ -72,10 +82,16 @@ namespace GUI
         public MainWindow()
         {
             InitializeComponent();
+            HideText();
             LabelText = "Status:";
             Binding StatusBinding = new Binding("LabelText");
             StatusBinding.Source = this;
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
+
+            ProgressText = "";
+            Binding ProgressBinding = new Binding("ProgressText");
+            ProgressBinding.Source = this;
+            ProgressLabel.SetBinding(Label.ContentProperty, ProgressBinding);
 
             ProgressCounterfiles = 0;
             Binding ProgressBindingfiles = new Binding("ProgressCounterfiles");
@@ -87,13 +103,21 @@ namespace GUI
             ProgressBindingfolders.Source = this;
             FolderProgressBar.SetBinding(ProgressBar.ValueProperty, ProgressBindingfolders);
         }
+        private void HideText()
+        {
+            FilesProgressBar.Visibility = Visibility.Hidden;
+            FolderProgressBar.Visibility = Visibility.Hidden;
+            FilesTextBlock.Visibility = Visibility.Hidden;
+            ProgressText = "";
+            ProgressCounterfiles = 0;
+            ProgressCounterfolders = 0;
+        }
         private void DisableButtons()
         {
             UnzipandUnlinkButton.IsEnabled = false;
             UnzipButton.IsEnabled = false;
             UnlinkButton.IsEnabled = false;
-            FilesProgressBar.Visibility = Visibility.Hidden;
-            FolderProgressBar.Visibility = Visibility.Hidden;
+            HideText();
         }
         private void EnableButtons()
         {
@@ -105,13 +129,12 @@ namespace GUI
         public void ReWriteFrameOfReference(string selected_folder)
         {
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
+            LabelText = "Characterizing directory...Please wait";
+            ProgressText = "Overall Progress";
             dicomParser.Characterize_Directory(selected_folder);
-            float folder_counter = 0;
-            float total_folders = dicomParser.dicom_series_instance_uids.Count;
+            List<string> mr_series_uids = new List<string>();
             foreach (string dicom_series_instance_uid in dicomParser.dicom_series_instance_uids)
             {
-                folder_counter++;
-                ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
                 string modality;
                 VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
                 DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
@@ -128,23 +151,34 @@ namespace GUI
                 }
                 if (modality.ToLower().Contains("mr"))
                 {
-                    float file_counter = 0;
-                    float total_files = dicom_names.Count;
-                    Parallel.ForEach(dicom_names, dicom_file =>
-                    {
-                        file_counter++;
-                        ProgressCounterfiles = (file_counter + 1) / total_files * 100;
-                        try
-                        {
-                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
-                            file.Save(dicom_file);
-                        }
-                        catch
-                        {
-                        }
-                    });
+                    mr_series_uids.Add(dicom_series_instance_uid);
                 }
+            }
+            LabelText = "Unlinking!";
+            float folder_counter = 0;
+            float total_folders = mr_series_uids.Count;
+            foreach (string dicom_series_instance_uid in mr_series_uids)
+            {
+                folder_counter++;
+                ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
+                VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
+                DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
+                float file_counter = 0;
+                float total_files = dicom_names.Count;
+                Parallel.ForEach(dicom_names, dicom_file =>
+                {
+                    file_counter++;
+                    ProgressCounterfiles = (file_counter + 1) / total_files * 100;
+                    try
+                    {
+                        var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                        file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                        file.Save(dicom_file);
+                    }
+                    catch
+                    {
+                    }
+                });
             }
         }
         public async Task Unzip(string zip_file)
@@ -208,11 +242,13 @@ namespace GUI
                 await Unzip(zip_file);
                 LabelText = $"Unlinking MR";
                 string selected_folder = Path.Combine(base_directory, file_name.Substring(0, file_name.Length - 4));
+                LabelText = "Checking folder";
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
-                    FilesProgressBar.Visibility = Visibility.Visible;
                     FolderProgressBar.Visibility = Visibility.Visible;
+                    FilesProgressBar.Visibility = Visibility.Visible;
+                    FilesTextBlock.Visibility = Visibility.Visible;
                     await Unlink(selected_folder);
                 }
             }
@@ -222,6 +258,7 @@ namespace GUI
         public async void UnlinkButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
+            LabelText = "";
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = true;
@@ -233,11 +270,13 @@ namespace GUI
             if (file_selected)
             {
                 string selected_folder = dialog.FileName;
+                LabelText = "Checking folder";
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
-                    FilesProgressBar.Visibility = Visibility.Visible;
                     FolderProgressBar.Visibility = Visibility.Visible;
+                    FilesProgressBar.Visibility = Visibility.Visible;
+                    FilesTextBlock.Visibility = Visibility.Visible;
                     await Unlink(selected_folder);
                 }
                 else
