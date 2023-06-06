@@ -101,23 +101,13 @@ namespace GUI
             UnzipButton.IsEnabled = true;
             UnlinkButton.IsEnabled = true;
         }
-        private async Task Unzip(string zip_file)
-        {
-            await Task.Run(() =>
-            {
-                LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
-                string zip_directory = Path.GetDirectoryName(zip_file);
-                UnzipUtils.UnzipFile(zip_file, zip_directory);
-                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
-            });
-        }
 
-        private void ReWriteFrameOfReference(string selected_folder)
+        public void ReWriteFrameOfReference(string selected_folder)
         {
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
             dicomParser.Characterize_Directory(selected_folder);
-            int folder_counter = 0;
-            int total_folders = dicomParser.dicom_series_instance_uids.Count;
+            float folder_counter = 0;
+            float total_folders = dicomParser.dicom_series_instance_uids.Count;
             foreach (string dicom_series_instance_uid in dicomParser.dicom_series_instance_uids)
             {
                 folder_counter++;
@@ -138,8 +128,8 @@ namespace GUI
                 }
                 if (modality.ToLower().Contains("mr"))
                 {
-                    int file_counter = 0;
-                    int total_files = dicom_names.Count;
+                    float file_counter = 0;
+                    float total_files = dicom_names.Count;
                     Parallel.ForEach(dicom_names, dicom_file =>
                     {
                         file_counter++;
@@ -157,7 +147,18 @@ namespace GUI
                 }
             }
         }
-        private async Task Unlink(string selected_folder)
+        public async Task Unzip(string zip_file)
+        {
+            await Task.Run(() =>
+            {
+                LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
+                string zip_directory = Path.GetDirectoryName(zip_file);
+                UnzipUtils.UnzipFile(zip_file, zip_directory);
+                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
+            });
+        }
+
+        public async Task Unlink(string selected_folder)
         {
             await Task.Run(() =>
             {
@@ -166,7 +167,7 @@ namespace GUI
                 LabelText = "Completed!";
             });
         }
-        private async void UnzipButton_Click(object sender, RoutedEventArgs e)
+        public async void UnzipButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
@@ -187,7 +188,7 @@ namespace GUI
             EnableButtons();
         }
 
-        private async void UnzipandUnlinkButton_Click(object sender, RoutedEventArgs e)
+        public async void UnzipandUnlinkButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
@@ -218,7 +219,7 @@ namespace GUI
             EnableButtons();
         }
 
-        private async void UnlinkButton_Click(object sender, RoutedEventArgs e)
+        public async void UnlinkButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
             CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
