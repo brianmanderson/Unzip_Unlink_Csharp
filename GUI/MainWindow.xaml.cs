@@ -21,6 +21,8 @@ using Unzip_Unlink;
 using UnzipClass;
 using NewFrameOfReferenceClass;
 using System.Threading.Tasks;
+using itk.simple;
+using FellowOakDicom;
 
 namespace GUI
 {
@@ -29,6 +31,26 @@ namespace GUI
     /// </summary>
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
+        private float progressCounterfiles;
+        public float ProgressCounterfiles
+        {
+            get { return progressCounterfiles; }
+            set
+            {
+                progressCounterfiles = value;
+                OnPropertyChanged("ProgressCounterfiles");
+            }
+        }
+        private float progressCounterfolders;
+        public float ProgressCounterfolders
+        {
+            get { return progressCounterfolders; }
+            set
+            {
+                progressCounterfiles = value;
+                OnPropertyChanged("ProgressCounterfolders");
+            }
+        }
         private string labelText;
         private bool file_selected;
         public string LabelText
@@ -54,12 +76,24 @@ namespace GUI
             Binding StatusBinding = new Binding("LabelText");
             StatusBinding.Source = this;
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
+
+            ProgressCounterfiles = 0;
+            Binding ProgressBindingfiles = new Binding("ProgressCounterfiles");
+            ProgressBindingfiles.Source = this;
+            FilesProgressBar.SetBinding(ProgressBar.ValueProperty, ProgressBindingfiles);
+
+            ProgressCounterfolders = 0;
+            Binding ProgressBindingfolders = new Binding("ProgressCounterfolders");
+            ProgressBindingfolders.Source = this;
+            FolderProgressBar.SetBinding(ProgressBar.ValueProperty, ProgressBindingfolders);
         }
         private void DisableButtons()
         {
             UnzipandUnlinkButton.IsEnabled = false;
             UnzipButton.IsEnabled = false;
             UnlinkButton.IsEnabled = false;
+            FilesProgressBar.Visibility = Visibility.Hidden;
+            FolderProgressBar.Visibility = Visibility.Hidden;
         }
         private void EnableButtons()
         {
@@ -77,15 +111,58 @@ namespace GUI
                 LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             });
         }
+
+        private void ReWriteFrameOfReference(string selected_folder)
+        {
+            FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
+            dicomParser.Characterize_Directory(selected_folder);
+            int folder_counter = 0;
+            int total_folders = dicomParser.dicom_series_instance_uids.Count;
+            foreach (string dicom_series_instance_uid in dicomParser.dicom_series_instance_uids)
+            {
+                folder_counter++;
+                ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
+                string modality;
+                VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
+                DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
+                dicomParser.image_reader.SetFileName(dicom_names[0]);
+                try
+                {
+                    dicomParser.image_reader.ReadImageInformation();
+                    modality = dicomParser.image_reader.GetMetaData("0008|0060");
+                }
+                catch
+                {
+                    modality = "null";
+                    continue;
+                }
+                if (modality.ToLower().Contains("mr"))
+                {
+                    int file_counter = 0;
+                    int total_files = dicom_names.Count;
+                    Parallel.ForEach(dicom_names, dicom_file =>
+                    {
+                        file_counter++;
+                        ProgressCounterfiles = (file_counter + 1) / total_files * 100;
+                        try
+                        {
+                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                            file.Save(dicom_file);
+                        }
+                        catch
+                        {
+                        }
+                    });
+                }
+            }
+        }
         private async Task Unlink(string selected_folder)
         {
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ProgressBar.Visibility = Visibility.Visible;
-                FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
-                dicomParser.Characterize_Directory(selected_folder);
-                dicomParser.ReWriteFrameOfReference();
+                ReWriteFrameOfReference(selected_folder);
                 LabelText = "Completed!";
             });
         }
@@ -96,7 +173,6 @@ namespace GUI
             dialog.InitialDirectory = ".";
             dialog.IsFolderPicker = false;
             file_selected = false;
-            ProgressBar.Visibility = Visibility.Hidden;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
                 file_selected = true;
@@ -134,6 +210,8 @@ namespace GUI
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
+                    FilesProgressBar.Visibility = Visibility.Visible;
+                    FolderProgressBar.Visibility = Visibility.Visible;
                     await Unlink(selected_folder);
                 }
             }
@@ -157,6 +235,8 @@ namespace GUI
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
                 {
+                    FilesProgressBar.Visibility = Visibility.Visible;
+                    FolderProgressBar.Visibility = Visibility.Visible;
                     await Unlink(selected_folder);
                 }
                 else

@@ -10,11 +10,12 @@
         <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="42,75,0,0" VerticalAlignment="Top" Height="51" Width="148" Click="UnzipButton_Click"/>
         <Button x:Name="UnlinkButton" Content="Unlink MR in Folder" HorizontalAlignment="Left" Margin="377,75,0,0" VerticalAlignment="Top" Height="51" Width="148" Click="UnlinkButton_Click"/>
         <Button x:Name="UnzipandUnlinkButton" Content="Unzip File and Unlink MR" HorizontalAlignment="Center" Margin="0,74,0,0" VerticalAlignment="Top" Height="52" Width="148" Click="UnzipandUnlinkButton_Click"/>
-        <ProgressBar x:Name="ProgressBar" HorizontalAlignment="Left" Height="15" Margin="42,209,0,0" VerticalAlignment="Top" Width="230" Visibility="Hidden"/>
+        <ProgressBar x:Name="FilesProgressBar" HorizontalAlignment="Left" Height="15" Margin="42,209,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
         <Label x:Name="StatusLabel" Content="" HorizontalAlignment="Center" VerticalAlignment="Center" Height="25" Width="483"/>
         <Label Content="This tool is created to help Unzip files, and break the inherent registration of MR files." HorizontalAlignment="Left" Margin="42,24,0,0" VerticalAlignment="Top" Height="26" Width="488"/>
         <Image HorizontalAlignment="Left" Height="138" Margin="395,209,0,0" VerticalAlignment="Top" Width="126" Source="/GitHub.JPG"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,303,0,0" TextWrapping="Wrap" Text="For issues please go to" VerticalAlignment="Top" Width="332"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,319,0,0" TextWrapping="Wrap" Text="https://github.com/brianmanderson/Unzip_Unlink_Csharp" VerticalAlignment="Top" Width="332"/>
+        <ProgressBar x:Name="FolderProgressBar" HorizontalAlignment="Left" Height="15" Margin="42,229,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
     </Grid>
 </Window>
