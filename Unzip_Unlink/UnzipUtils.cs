@@ -68,7 +68,7 @@ namespace Unzip_Unlink
             if (Directory.Exists(output_dir))
             {
                 Console.WriteLine("Renaming Folder...");
-                RenameFolder(output_dir);
+                //RenameFolder(output_dir);
             }
             if (File.Exists(overall_status))
             {
