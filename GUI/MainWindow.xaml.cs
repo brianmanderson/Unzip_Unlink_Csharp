@@ -23,6 +23,7 @@ using NewFrameOfReferenceClass;
 using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
+using FellowOakDicom.Imaging.Mathematics;
 
 namespace GUI
 {
@@ -72,6 +73,16 @@ namespace GUI
                 OnPropertyChanged("LabelText");
             }
         }
+        private string recommendText;
+        public string RecommendText
+        {
+            get { return recommendText; }
+            set
+            {
+                recommendText = value;
+                OnPropertyChanged("RecommendText");
+            }
+        }
         protected virtual void OnPropertyChanged(string property)
         {
             if (PropertyChanged != null)
@@ -87,6 +98,11 @@ namespace GUI
             Binding StatusBinding = new Binding("LabelText");
             StatusBinding.Source = this;
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
+
+
+            Binding RecommendBinding = new Binding("RecommendText");
+            RecommendBinding.Source = this;
+            RecommendLabel.SetBinding(Label.ContentProperty, RecommendBinding);
 
             ProgressText = "";
             Binding ProgressBinding = new Binding("ProgressText");
@@ -183,6 +199,10 @@ namespace GUI
         }
         public async Task Unzip(string zip_file)
         {
+            if (zip_file[0] == '/')
+            {
+                RecommendText = "Highly recommend copying this file locally to speed up process!";
+            }
             await Task.Run(() =>
             {
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
