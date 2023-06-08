@@ -203,7 +203,7 @@ namespace GUI
             DriveInfo info = new DriveInfo(Path.GetPathRoot(path));
             if (info.DriveType == DriveType.Network)
             {
-                RecommendText = "Highly recommend copying this file locally to speed up process!";
+                RecommendText = "Highly recommend copying this locally to speed up process!";
             }
         }
         public async Task Unzip(string zip_file)
