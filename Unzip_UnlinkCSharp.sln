@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FolderWatcher", "FolderWatc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnzipClass", "UnzipClass\UnzipClass.csproj", "{F54380B6-0C93-4AEF-8497-F3354808C1FB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GUI", "GUI\GUI.csproj", "{4FDBFE73-AE82-470F-ABF6-05B181CC7E4A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnzipUnlinkGUI", "GUI\UnzipUnlinkGUI.csproj", "{4FDBFE73-AE82-470F-ABF6-05B181CC7E4A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

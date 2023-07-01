@@ -25,7 +25,7 @@ using itk.simple;
 using FellowOakDicom;
 using FellowOakDicom.Imaging.Mathematics;
 
-namespace GUI
+namespace UnzipUnlinkGUI
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
