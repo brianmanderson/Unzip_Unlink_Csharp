@@ -39,6 +39,41 @@ namespace NewFrameOfReferenceClass
                 }
             }
         }
+        public void ReWriteFrameOfReference(string modality_override)
+        {
+            foreach (string dicom_series_instance_uid in dicom_series_instance_uids)
+            {
+                string modality;
+                VectorString dicom_names = series_instance_uids_dict[dicom_series_instance_uid];
+                DicomUID uid = series_instance_dict[dicom_series_instance_uid];
+                image_reader.SetFileName(dicom_names[0]);
+                try
+                {
+                    image_reader.ReadImageInformation();
+                    modality = image_reader.GetMetaData("0008|0060");
+                }
+                catch
+                {
+                    modality = "null";
+                    continue;
+                }
+                if (modality.ToLower().Contains(modality_override.ToLower()))
+                {
+                    Parallel.ForEach(dicom_names, dicom_file =>
+                    {
+                        try
+                        {
+                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                            file.Save(dicom_file);
+                        }
+                        catch
+                        {
+                        }
+                    });
+                }
+            }
+        }
         public void ReWriteFrameOfReference()
         {
             foreach (string dicom_series_instance_uid in dicom_series_instance_uids)
@@ -57,21 +92,18 @@ namespace NewFrameOfReferenceClass
                     modality = "null";
                     continue;
                 }
-                if (modality.ToLower().Contains("mr"))
+                Parallel.ForEach(dicom_names, dicom_file =>
                 {
-                    Parallel.ForEach(dicom_names, dicom_file =>
+                    try
                     {
-                        try
-                        {
-                            var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
-                            file.Save(dicom_file);
-                        }
-                        catch
-                        {
-                        }
-                    });
-                }
+                        var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                        file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                        file.Save(dicom_file);
+                    }
+                    catch
+                    {
+                    }
+                });
             }
         }
         public void ReWriteFrameOfReference(VectorString dicom_files)
@@ -162,7 +194,7 @@ namespace NewFrameOfReferenceClass
                 }
             });
         }
-        public void ReWriteFrameOfReference(string directory)
+        public void ReWriteFrameOfReferenceDirectory(string directory)
         {
             DicomUID new_uid;
             string[] dicom_files = Directory.GetFiles(directory, "*.dcm");
@@ -173,7 +205,32 @@ namespace NewFrameOfReferenceClass
                     var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
                     if (file.Dataset.Contains(DicomTag.Modality))
                     {
-                        if (file.Dataset.GetString(DicomTag.Modality).ToLower().Contains("mr"))
+                        string series_uid = file.Dataset.GetString(DicomTag.SeriesInstanceUID);
+                        if (series_instance_dict.ContainsKey(series_uid))
+                        {
+                            new_uid = series_instance_dict[series_uid];
+                            file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, new_uid);
+                            file.Save(dicom_file);
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            });
+        }
+        public void ReWriteFrameOfReferenceDirectory(string directory, string modality_override)
+        {
+            DicomUID new_uid;
+            string[] dicom_files = Directory.GetFiles(directory, "*.dcm");
+            Parallel.ForEach(dicom_files, dicom_file =>
+            {
+                try
+                {
+                    var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
+                    if (file.Dataset.Contains(DicomTag.Modality))
+                    {
+                        if (file.Dataset.GetString(DicomTag.Modality).ToLower().Contains(modality_override.ToLower()))
                         {
                             string series_uid = file.Dataset.GetString(DicomTag.SeriesInstanceUID);
                             if (series_instance_dict.ContainsKey(series_uid))
