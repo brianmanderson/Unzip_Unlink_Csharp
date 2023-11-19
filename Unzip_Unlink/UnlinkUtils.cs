@@ -78,7 +78,7 @@ namespace Unzip_Unlink
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            dicomParser.ReWriteFrameOfReference();
+            dicomParser.ReWriteFrameOfReference(modality_override: "mr");
             FileStream fid_status = File.OpenWrite(status_file);
             fid_status.Close();
             MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);

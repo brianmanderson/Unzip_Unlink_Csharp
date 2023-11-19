@@ -25,7 +25,7 @@ using itk.simple;
 using FellowOakDicom;
 using FellowOakDicom.Imaging.Mathematics;
 
-namespace GUI
+namespace UnzipUnlinkGUI
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -137,6 +137,7 @@ namespace GUI
         }
         private void EnableButtons()
         {
+            RecommendText = "";
             UnzipandUnlinkButton.IsEnabled = true;
             UnzipButton.IsEnabled = true;
             UnlinkButton.IsEnabled = true;
@@ -199,12 +200,16 @@ namespace GUI
                 });
             }
         }
+        public void CheckNetwork(string path)
+        {
+            DriveInfo info = new DriveInfo(Path.GetPathRoot(path));
+            if (info.DriveType == DriveType.Network)
+            {
+                RecommendText = "Highly recommend copying this locally to speed up process!";
+            }
+        }
         public async Task Unzip(string zip_file)
         {
-            if (zip_file[0] == '/')
-            {
-                RecommendText = "Highly recommend copying this file locally to speed up process!";
-            }
             await Task.Run(() =>
             {
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
@@ -240,6 +245,7 @@ namespace GUI
                 return;
             }
             zip_file = dialog.FileName;
+            CheckNetwork(zip_file);
             await Unzip(zip_file);
             EnableButtons();
         }
@@ -258,6 +264,7 @@ namespace GUI
             if (file_selected)
             {
                 zip_file = dialog.FileName;
+                CheckNetwork(zip_file);
                 string file_name = Path.GetFileName(zip_file);
                 string base_directory = Path.GetDirectoryName(dialog.FileName);
                 LabelText = $"Unzipping: {file_name}";
@@ -292,6 +299,7 @@ namespace GUI
             if (file_selected)
             {
                 string selected_folder = dialog.FileName;
+                CheckNetwork(selected_folder);
                 LabelText = "Checking folder";
                 bool run = UnlinkUtils.WatchFolder(selected_folder);
                 if (run)
