@@ -181,6 +181,7 @@ namespace GUI
                 DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
+                //DicomUID new_series_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
                 Parallel.ForEach(dicom_names, dicom_file =>
                 {
                     file_counter++;
@@ -189,6 +190,7 @@ namespace GUI
                     {
                         var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
                         file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
+                        //file.Dataset.AddOrUpdate(DicomTag.SeriesInstanceUID, new_series_uid);
                         file.Save(dicom_file);
                     }
                     catch
