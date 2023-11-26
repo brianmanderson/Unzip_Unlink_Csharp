@@ -1,32 +1,16 @@
 ﻿using System.IO;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Text;
-using System;
 using UnzipUnlinkGUI.Windows;
 using System.Windows;
 using System.Windows.Data;
-using System.Threading;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
 using System.Windows.Controls;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Diagnostics;
-using System.Collections.ObjectModel;
 using Unzip_Unlink;
-using UnzipClass;
 using NewFrameOfReferenceClass;
 using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
-using FellowOakDicom.Imaging.Mathematics;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using System.Security.Cryptography;
 
 namespace UnzipUnlinkGUI
 {
@@ -319,7 +303,7 @@ namespace UnzipUnlinkGUI
                     FolderProgressBar.Visibility = Visibility.Visible;
                     FilesProgressBar.Visibility = Visibility.Visible;
                     FilesTextBlock.Visibility = Visibility.Visible;
-                    await Unlink(selected_folder, modalities);
+                    await Unlink(selected_folder, tags, modalities);
                 }
                 else
                 {
