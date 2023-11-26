@@ -7,18 +7,18 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="425" Width="600">
     <Grid>
-        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,78,70,274">
+        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,64,70,274">
             <StackPanel>
                 <CheckBox Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                 <CheckBox Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                 <CheckBox Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top"/>
             </StackPanel>
         </ScrollViewer>
-        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,78,363,274">
-            <StackPanel  x:Name="AttributesStackPanel">
-                <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="CheckBox_Checked"/>
-                <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <CheckBox x:Name="StudyUID_CheckBox" Content="Study Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,64,363,274">
+            <StackPanel>
+                <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Unchecked"/>
+                <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Unchecked"/>
+                <CheckBox x:Name="StudyUID_CheckBox" Content="Study Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Unchecked"/>
             </StackPanel>
         </ScrollViewer>
         <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="30,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipButton_Click"/>
@@ -34,7 +34,7 @@
         <Label x:Name="ProgressLabel" Content="Overall progress" HorizontalAlignment="Left" VerticalAlignment="Top" Height="25" Width="111" Margin="260,292,0,0"/>
         <Label x:Name="RecommendLabel" Content="" HorizontalAlignment="Left" VerticalAlignment="Top" Height="33" Width="483" Margin="30,216,0,0"/>
         <Button x:Name="AboutButton" Content="About!" HorizontalAlignment="Left" Background="LightGreen" Margin="380,300,0,0" VerticalAlignment="Top" Height="71" Width="150" Click="AboutButton_Click"/>
-        <Label Content="Things you want to change" HorizontalAlignment="Left" Margin="28,47,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
-        <Label Content="Modalities you want to change" HorizontalAlignment="Left" Margin="380,47,0,0" VerticalAlignment="Top" Height="26" Width="215"/>
+        <Label Content="Things you want to change" HorizontalAlignment="Left" Margin="28,33,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
+        <Label Content="Modalities you want to change" HorizontalAlignment="Left" Margin="380,33,0,0" VerticalAlignment="Top" Height="26" Width="215"/>
     </Grid>
 </Window>

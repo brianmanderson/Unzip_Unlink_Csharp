@@ -25,6 +25,8 @@ using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
 using FellowOakDicom.Imaging.Mathematics;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using System.Security.Cryptography;
 
 namespace UnzipUnlinkGUI
 {
@@ -92,10 +94,12 @@ namespace UnzipUnlinkGUI
         public event PropertyChangedEventHandler PropertyChanged;
         string zip_file;
         private List<string> modalities;
+        private List<DicomTag> tags;
         public MainWindow()
         {
             InitializeComponent();
             modalities = new List<string>();
+            tags = new List<DicomTag>();
             HideText();
             LabelText = "Status:";
             Binding StatusBinding = new Binding("LabelText");
@@ -146,7 +150,7 @@ namespace UnzipUnlinkGUI
             UnlinkButton.IsEnabled = true;
         }
 
-        public void ReWriteFrameOfReference(string selected_folder, List<string> modalities)
+        public void ReWriteFrameOfReference(string selected_folder, List<DicomTag> tags, List<string> modalities)
         {
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
             LabelText = "Characterizing directory...Please wait";
@@ -174,7 +178,7 @@ namespace UnzipUnlinkGUI
                     mr_series_uids.Add(dicom_series_instance_uid);
                 }
             }
-            LabelText = "Unlinking!";
+            LabelText = "Changing!";
             float folder_counter = 0;
             float total_folders = mr_series_uids.Count;
             foreach (string dicom_series_instance_uid in mr_series_uids)
@@ -182,10 +186,13 @@ namespace UnzipUnlinkGUI
                 folder_counter++;
                 ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
                 VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
-                DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
-                //DicomUID new_series_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
+                List<DicomUID> new_uids = new List<DicomUID>();
+                foreach (DicomTag tag in tags)
+                {
+                    new_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
+                }
                 Parallel.ForEach(dicom_names, dicom_file =>
                 {
                     file_counter++;
@@ -193,8 +200,10 @@ namespace UnzipUnlinkGUI
                     try
                     {
                         var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
-                        file.Dataset.AddOrUpdate(DicomTag.FrameOfReferenceUID, uid);
-                        //file.Dataset.AddOrUpdate(DicomTag.SeriesInstanceUID, new_series_uid);
+                        for (int i = 0; i < tags.Count; i++)
+                        {
+                            file.Dataset.AddOrUpdate(tags[i], new_uids[i]);
+                        }
                         file.Save(dicom_file);
                     }
                     catch
@@ -222,12 +231,12 @@ namespace UnzipUnlinkGUI
             });
         }
 
-        public async Task Unlink(string selected_folder, List<string> modalities)
+        public async Task Unlink(string selected_folder, List<DicomTag> tags, List<string> modalities)
         {
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ReWriteFrameOfReference(selected_folder, modalities);
+                ReWriteFrameOfReference(selected_folder, tags, modalities);
                 LabelText = "Completed!";
             });
         }
@@ -281,7 +290,7 @@ namespace UnzipUnlinkGUI
                     FolderProgressBar.Visibility = Visibility.Visible;
                     FilesProgressBar.Visibility = Visibility.Visible;
                     FilesTextBlock.Visibility = Visibility.Visible;
-                    await Unlink(selected_folder, modalities);
+                    await Unlink(selected_folder, tags, modalities);
                 }
             }
             EnableButtons();
@@ -326,15 +335,34 @@ namespace UnzipUnlinkGUI
             about_page.Show();
         }
 
-        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             if (FoR_CheckBox.IsChecked == true)
             {
-                int x = 1;
+                tags.Add(DicomTag.FrameOfReferenceUID);
             }
-            else
+            if (SeriesUID_CheckBox.IsChecked == true)
             {
-                int x = 0;
+                tags.Add(DicomTag.SeriesInstanceUID);
+            }
+            if (StudyUID_CheckBox.IsChecked == true)
+            {
+                tags.Add(DicomTag.StudyInstanceUID);
+            }
+        }
+        private void ThingCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (FoR_CheckBox.IsChecked == false)
+            {
+                tags.Remove(DicomTag.FrameOfReferenceUID);
+            }
+            if (SeriesUID_CheckBox.IsChecked == false)
+            {
+                tags.Remove(DicomTag.SeriesInstanceUID);
+            }
+            if (StudyUID_CheckBox.IsChecked == false)
+            {
+                tags.Remove(DicomTag.StudyInstanceUID);
             }
         }
     }
