@@ -168,13 +168,13 @@ namespace UnzipUnlinkGUI
             float total_folders = mr_series_uids.Count;
             foreach (string dicom_series_instance_uid in mr_series_uids)
             {
-                folder_counter++;
                 ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
+                folder_counter++;
                 VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
                 List<DicomUID> new_uids = new List<DicomUID>();
-                foreach (DicomTag tag in tags)
+                for (int i = 0; i < tags.Count; i++)
                 {
                     new_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
                 }
