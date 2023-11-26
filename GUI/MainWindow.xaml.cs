@@ -91,9 +91,11 @@ namespace UnzipUnlinkGUI
         }
         public event PropertyChangedEventHandler PropertyChanged;
         string zip_file;
+        private List<string> modalities;
         public MainWindow()
         {
             InitializeComponent();
+            modalities = new List<string>();
             HideText();
             LabelText = "Status:";
             Binding StatusBinding = new Binding("LabelText");
@@ -144,7 +146,7 @@ namespace UnzipUnlinkGUI
             UnlinkButton.IsEnabled = true;
         }
 
-        public void ReWriteFrameOfReference(string selected_folder)
+        public void ReWriteFrameOfReference(string selected_folder, List<string> modalities)
         {
             FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
             LabelText = "Characterizing directory...Please wait";
@@ -167,7 +169,7 @@ namespace UnzipUnlinkGUI
                     modality = "null";
                     continue;
                 }
-                if (modality.ToLower().Contains("mr"))
+                if (modalities.Contains(modality.ToLower()))
                 {
                     mr_series_uids.Add(dicom_series_instance_uid);
                 }
@@ -183,7 +185,6 @@ namespace UnzipUnlinkGUI
                 DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
-                DicomTag.UID
                 //DicomUID new_series_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
                 Parallel.ForEach(dicom_names, dicom_file =>
                 {
@@ -221,12 +222,12 @@ namespace UnzipUnlinkGUI
             });
         }
 
-        public async Task Unlink(string selected_folder)
+        public async Task Unlink(string selected_folder, List<string> modalities)
         {
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ReWriteFrameOfReference(selected_folder);
+                ReWriteFrameOfReference(selected_folder, modalities);
                 LabelText = "Completed!";
             });
         }
@@ -280,7 +281,7 @@ namespace UnzipUnlinkGUI
                     FolderProgressBar.Visibility = Visibility.Visible;
                     FilesProgressBar.Visibility = Visibility.Visible;
                     FilesTextBlock.Visibility = Visibility.Visible;
-                    await Unlink(selected_folder);
+                    await Unlink(selected_folder, modalities);
                 }
             }
             EnableButtons();
@@ -309,7 +310,7 @@ namespace UnzipUnlinkGUI
                     FolderProgressBar.Visibility = Visibility.Visible;
                     FilesProgressBar.Visibility = Visibility.Visible;
                     FilesTextBlock.Visibility = Visibility.Visible;
-                    await Unlink(selected_folder);
+                    await Unlink(selected_folder, modalities);
                 }
                 else
                 {
