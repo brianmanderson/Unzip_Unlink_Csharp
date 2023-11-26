@@ -9,9 +9,9 @@
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,64,70,274">
             <StackPanel>
-                <CheckBox Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <CheckBox Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                <CheckBox Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Unchecked"/>
+                <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Unchecked"/>
+                <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Unchecked"/>
             </StackPanel>
         </ScrollViewer>
         <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,64,363,274">

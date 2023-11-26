@@ -349,5 +349,36 @@ namespace UnzipUnlinkGUI
                 tags.Remove(DicomTag.StudyInstanceUID);
             }
         }
+
+        private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (CT_CheckBox.IsChecked == true)
+            {
+                modalities.Add("ct");
+            }
+            if (MR_CheckBox.IsChecked == true)
+            {
+                modalities.Add("mr");
+            }
+            if (PET_CheckBox.IsChecked == true)
+            {
+                modalities.Add("pt");
+            }
+        }
+        private void ModalityCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (CT_CheckBox.IsChecked == false)
+            {
+                modalities.Remove("ct");
+            }
+            if (MR_CheckBox.IsChecked == false)
+            {
+                modalities.Remove("mr");
+            }
+            if (PET_CheckBox.IsChecked == false)
+            {
+                modalities.Remove("pt");
+            }
+        }
     }
 }
