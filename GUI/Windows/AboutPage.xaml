@@ -10,7 +10,7 @@
 
         <Image HorizontalAlignment="Left" Height="224" Margin="250,23,0,0" VerticalAlignment="Top" Width="209" Source="/GitHub.JPG"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,187,0,0" TextWrapping="Wrap" Text="Check out other tools at my GitHub" VerticalAlignment="Top" Width="199" Height="26"/>
-        <TextBlock HorizontalAlignment="Left" Margin="30,218,0,0" TextWrapping="Wrap" Text="https://GitHub.com/BrianMAnderson/" VerticalAlignment="Top" Width="332"/>
+        <TextBlock Margin="0,218,138,0" TextWrapping="Wrap" Text="https://GitHub.com/BrianMAnderson/" VerticalAlignment="Top" HorizontalAlignment="Right" Width="332"/>
         <TextBlock HorizontalAlignment="Left" Margin="30,55,0,0" TextWrapping="Wrap" Text="I hope this program helps you
                    in some way. If you find it useful I would love to hear so! Please feel free to reach out with any thoughts for future improvements or issues.
                    markba122@gmail.com" VerticalAlignment="Top" Width="199" Height="99"/>
