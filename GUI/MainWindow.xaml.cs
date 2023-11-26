@@ -11,6 +11,7 @@ using NewFrameOfReferenceClass;
 using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
+using System.Linq;
 
 namespace UnzipUnlinkGUI
 {
@@ -318,67 +319,51 @@ namespace UnzipUnlinkGUI
             AboutPage about_page = new AboutPage();
             about_page.Show();
         }
-
+        private void add_or_remove_tag(DicomTag tag, bool add)
+        {
+            if (add)
+            {
+                if (!tags.Contains(tag))
+                {
+                    tags.Add(tag);
+                }
+            }
+            else
+            {
+                if (tags.Contains(tag))
+                {
+                    tags.Remove(tag);
+                }
+            }
+        }
+        private void add_or_remove_modality(string modality, bool add)
+        {
+            if (add)
+            {
+                if (!modalities.Contains(modality))
+                {
+                    modalities.Add(modality);
+                }
+            }
+            else
+            {
+                if (modalities.Contains(modality))
+                {
+                    modalities.Remove(modality);
+                }
+            }
+        }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (FoR_CheckBox.IsChecked == true)
-            {
-                tags.Add(DicomTag.FrameOfReferenceUID);
-            }
-            if (SeriesUID_CheckBox.IsChecked == true)
-            {
-                tags.Add(DicomTag.SeriesInstanceUID);
-            }
-            if (StudyUID_CheckBox.IsChecked == true)
-            {
-                tags.Add(DicomTag.StudyInstanceUID);
-            }
+            add_or_remove_tag(DicomTag.FrameOfReferenceUID, (bool)FoR_CheckBox.IsChecked);
+            add_or_remove_tag(DicomTag.SeriesInstanceUID, (bool)SeriesUID_CheckBox.IsChecked);
+            add_or_remove_tag(DicomTag.StudyInstanceUID, (bool)StudyUID_CheckBox.IsChecked);
         }
-        private void ThingCheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (FoR_CheckBox.IsChecked == false)
-            {
-                tags.Remove(DicomTag.FrameOfReferenceUID);
-            }
-            if (SeriesUID_CheckBox.IsChecked == false)
-            {
-                tags.Remove(DicomTag.SeriesInstanceUID);
-            }
-            if (StudyUID_CheckBox.IsChecked == false)
-            {
-                tags.Remove(DicomTag.StudyInstanceUID);
-            }
-        }
-
         private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (CT_CheckBox.IsChecked == true)
-            {
-                modalities.Add("ct");
-            }
-            if (MR_CheckBox.IsChecked == true)
-            {
-                modalities.Add("mr");
-            }
-            if (PET_CheckBox.IsChecked == true)
-            {
-                modalities.Add("pt");
-            }
-        }
-        private void ModalityCheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (CT_CheckBox.IsChecked == false)
-            {
-                modalities.Remove("ct");
-            }
-            if (MR_CheckBox.IsChecked == false)
-            {
-                modalities.Remove("mr");
-            }
-            if (PET_CheckBox.IsChecked == false)
-            {
-                modalities.Remove("pt");
-            }
+            add_or_remove_modality("ct", (bool)CT_CheckBox.IsChecked);
+            add_or_remove_modality("mr", (bool)MR_CheckBox.IsChecked);
+            add_or_remove_modality("pt", (bool)PET_CheckBox.IsChecked);
         }
     }
 }
