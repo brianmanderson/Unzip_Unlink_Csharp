@@ -5,20 +5,36 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UnzipUnlinkGUI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="400" Width="567">
+        Title="MainWindow" Height="425" Width="600">
     <Grid>
-        <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="50,75,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipButton_Click"/>
-        <Button x:Name="UnlinkButton" Content="Unlink MR in Folder" HorizontalAlignment="Left" Margin="380,75,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnlinkButton_Click"/>
-        <Button x:Name="UnzipandUnlinkButton" Content="Unzip File and Unlink MR" HorizontalAlignment="Left" Margin="215,75,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipandUnlinkButton_Click"/>
-        <Label x:Name="StatusLabel" Content="" HorizontalAlignment="Center" VerticalAlignment="Center" Height="33" Width="483"/>
-        <Label Content="This tool is created to help Unzip files, and break the inherent registration of MR files." HorizontalAlignment="Left" Margin="42,24,0,0" VerticalAlignment="Top" Height="26" Width="488"/>
-        <Image HorizontalAlignment="Left" Height="138" Margin="395,209,0,0" VerticalAlignment="Top" Width="126" Source="/GitHub.JPG"/>
-        <TextBlock HorizontalAlignment="Left" Margin="30,303,0,0" TextWrapping="Wrap" Text="For issues please go to" VerticalAlignment="Top" Width="332"/>
-        <TextBlock HorizontalAlignment="Left" Margin="30,319,0,0" TextWrapping="Wrap" Text="https://github.com/brianmanderson/Unzip_Unlink_Csharp" VerticalAlignment="Top" Width="332"/>
-        <ProgressBar x:Name="FilesProgressBar" HorizontalAlignment="Left" Height="15" Margin="42,229,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
-        <ProgressBar x:Name="FolderProgressBar" HorizontalAlignment="Left" Height="15" Margin="42,209,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
-        <TextBlock x:Name="FilesTextBlock" HorizontalAlignment="Left" Margin="277,229,0,0" TextWrapping="Wrap" Text="Rewriting files" VerticalAlignment="Top" Width="111" Height="20"/>
-        <Label x:Name="ProgressLabel" Content="Overall progress" HorizontalAlignment="Left" VerticalAlignment="Top" Height="25" Width="111" Margin="272,202,0,0"/>
-        <Label x:Name="RecommendLabel" Content="" HorizontalAlignment="Center" VerticalAlignment="Top" Height="33" Width="483" Margin="0,138,0,0"/>
+        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,78,70,274">
+            <StackPanel>
+                <CheckBox Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <CheckBox Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <CheckBox Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </StackPanel>
+        </ScrollViewer>
+        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,78,363,274">
+            <StackPanel  x:Name="AttributesStackPanel">
+                <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="CheckBox_Checked"/>
+                <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                <CheckBox x:Name="StudyUID_CheckBox" Content="Study Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </StackPanel>
+        </ScrollViewer>
+        <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="30,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipButton_Click"/>
+        <Button x:Name="UnlinkButton" Content="Run on DICOM in Folder" HorizontalAlignment="Left" Margin="380,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnlinkButton_Click"/>
+        <Button x:Name="UnzipandUnlinkButton" Content="Unzip File and Run" HorizontalAlignment="Left" Margin="211,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipandUnlinkButton_Click"/>
+        <Label x:Name="StatusLabel" Content="" HorizontalAlignment="Left" VerticalAlignment="Top" Height="33" Width="483" Margin="30,254,0,0"/>
+        <Label Content="This tool is created to help unzip files, and change DICOM" HorizontalAlignment="Left" Margin="30,10,0,0" VerticalAlignment="Top" Height="26" Width="488"/>
+        <TextBlock HorizontalAlignment="Left" Margin="30,339,0,0" TextWrapping="Wrap" Text="For issues please go to" VerticalAlignment="Top" Width="332"/>
+        <TextBlock HorizontalAlignment="Left" Margin="30,355,0,0" TextWrapping="Wrap" Text="https://github.com/brianmanderson/Unzip_Unlink_Csharp" VerticalAlignment="Top" Width="332"/>
+        <ProgressBar x:Name="FilesProgressBar" HorizontalAlignment="Left" Height="15" Margin="30,319,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
+        <ProgressBar x:Name="FolderProgressBar" HorizontalAlignment="Left" Height="15" Margin="30,299,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
+        <TextBlock x:Name="FilesTextBlock" HorizontalAlignment="Left" Margin="265,319,0,0" TextWrapping="Wrap" Text="Rewriting files" VerticalAlignment="Top" Width="111" Height="20"/>
+        <Label x:Name="ProgressLabel" Content="Overall progress" HorizontalAlignment="Left" VerticalAlignment="Top" Height="25" Width="111" Margin="260,292,0,0"/>
+        <Label x:Name="RecommendLabel" Content="" HorizontalAlignment="Left" VerticalAlignment="Top" Height="33" Width="483" Margin="30,216,0,0"/>
+        <Button x:Name="AboutButton" Content="About!" HorizontalAlignment="Left" Background="LightGreen" Margin="380,300,0,0" VerticalAlignment="Top" Height="71" Width="150" Click="AboutButton_Click"/>
+        <Label Content="Things you want to change" HorizontalAlignment="Left" Margin="28,47,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
+        <Label Content="Modalities you want to change" HorizontalAlignment="Left" Margin="380,47,0,0" VerticalAlignment="Top" Height="26" Width="215"/>
     </Grid>
 </Window>

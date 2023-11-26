@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System;
+using UnzipUnlinkGUI.Windows;
 using System.Windows;
 using System.Windows.Data;
 using System.Threading;
@@ -182,6 +183,7 @@ namespace UnzipUnlinkGUI
                 DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
+                DicomTag.UID
                 //DicomUID new_series_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
                 Parallel.ForEach(dicom_names, dicom_file =>
                 {
@@ -315,6 +317,24 @@ namespace UnzipUnlinkGUI
                 }
             }
             EnableButtons();
+        }
+
+        private void AboutButton_Click(object sender, RoutedEventArgs e)
+        {
+            AboutPage about_page = new AboutPage();
+            about_page.Show();
+        }
+
+        private void CheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (FoR_CheckBox.IsChecked == true)
+            {
+                int x = 1;
+            }
+            else
+            {
+                int x = 0;
+            }
         }
     }
 }
