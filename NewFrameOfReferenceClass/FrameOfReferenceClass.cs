@@ -89,7 +89,6 @@ namespace NewFrameOfReferenceClass
                 }
                 catch
                 {
-                    modality = "null";
                     continue;
                 }
                 Parallel.ForEach(dicom_names, dicom_file =>

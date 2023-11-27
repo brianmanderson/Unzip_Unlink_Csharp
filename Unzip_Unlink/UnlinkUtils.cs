@@ -78,7 +78,49 @@ namespace Unzip_Unlink
                 FileStream fid_overallstatus = File.OpenWrite(overall_status);
                 fid_overallstatus.Close();
             }
-            dicomParser.ReWriteFrameOfReference(modality_override: "mr");
+            dicomParser.ReWriteFrameOfReference();
+            FileStream fid_status = File.OpenWrite(status_file);
+            fid_status.Close();
+            MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
+            Console.WriteLine("Finished!");
+            if (File.Exists(overall_status))
+            {
+                File.Delete(overall_status);
+            }
+        }
+        public static void UpdatedFrameOfReference(string base_directory, string directory, string modality_override)
+        {
+            string status_file, overall_status, parsing_status;
+            status_file = Path.Combine(directory, "NewFrameOfRef.txt");
+            overall_status = Path.Combine(base_directory, $"UpdatingFrameOfRef_{Path.GetFileName(directory)}.txt");
+            parsing_status = Path.Combine(base_directory, $"Parsing_{Path.GetFileName(directory)}.txt");
+            if (!WatchFolder(directory))
+            {
+                return;
+            }
+            if (File.Exists(status_file))
+            {
+                return;
+            }
+            if (!File.Exists(parsing_status))
+            {
+                FileStream fid_parsing_status = File.OpenWrite(parsing_status);
+                fid_parsing_status.Close();
+            }
+            Console.WriteLine("Parsing DICOM files...");
+            FrameOfReferenceClass dicomParser = new FrameOfReferenceClass();
+            dicomParser.Characterize_Directory(directory);
+            if (File.Exists(parsing_status))
+            {
+                File.Delete(parsing_status);
+            }
+            Console.WriteLine("Updating frames of reference...");
+            if (!File.Exists(overall_status))
+            {
+                FileStream fid_overallstatus = File.OpenWrite(overall_status);
+                fid_overallstatus.Close();
+            }
+            dicomParser.ReWriteFrameOfReference(modality_override: modality_override);
             FileStream fid_status = File.OpenWrite(status_file);
             fid_status.Close();
             MoveFolder(moving_directory: Path.Combine(base_directory, "NewFinished"), current_folder: directory);
