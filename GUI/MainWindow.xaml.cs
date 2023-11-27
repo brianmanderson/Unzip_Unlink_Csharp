@@ -73,13 +73,12 @@ namespace UnzipUnlinkGUI
         }
         protected virtual void OnPropertyChanged(string property)
         {
-            if (PropertyChanged != null)
-                PropertyChanged(this, new PropertyChangedEventArgs(property));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         }
         public event PropertyChangedEventHandler PropertyChanged;
         string zip_file;
-        private List<string> modalities;
-        private List<DicomTag> tags;
+        private readonly List<string> modalities;
+        private readonly List<DicomTag> tags;
         public MainWindow()
         {
             InitializeComponent();
@@ -87,28 +86,38 @@ namespace UnzipUnlinkGUI
             tags = new List<DicomTag>();
             HideText();
             LabelText = "Status:";
-            Binding StatusBinding = new Binding("LabelText");
-            StatusBinding.Source = this;
+            Binding StatusBinding = new Binding("LabelText")
+            {
+                Source = this
+            };
             StatusLabel.SetBinding(Label.ContentProperty, StatusBinding);
 
 
-            Binding RecommendBinding = new Binding("RecommendText");
-            RecommendBinding.Source = this;
+            Binding RecommendBinding = new Binding("RecommendText")
+            {
+                Source = this
+            };
             RecommendLabel.SetBinding(Label.ContentProperty, RecommendBinding);
 
             ProgressText = "";
-            Binding ProgressBinding = new Binding("ProgressText");
-            ProgressBinding.Source = this;
+            Binding ProgressBinding = new Binding("ProgressText")
+            {
+                Source = this
+            };
             ProgressLabel.SetBinding(Label.ContentProperty, ProgressBinding);
 
             ProgressCounterfiles = 0;
-            Binding ProgressBindingfiles = new Binding("ProgressCounterfiles");
-            ProgressBindingfiles.Source = this;
+            Binding ProgressBindingfiles = new Binding("ProgressCounterfiles")
+            {
+                Source = this
+            };
             FilesProgressBar.SetBinding(ProgressBar.ValueProperty, ProgressBindingfiles);
 
             ProgressCounterfolders = 0;
-            Binding ProgressBindingfolders = new Binding("ProgressCounterfolders");
-            ProgressBindingfolders.Source = this;
+            Binding ProgressBindingfolders = new Binding("ProgressCounterfolders")
+            {
+                Source = this
+            };
             FolderProgressBar.SetBinding(ProgressBar.ValueProperty, ProgressBindingfolders);
         }
         private void HideText()
@@ -228,9 +237,11 @@ namespace UnzipUnlinkGUI
         public async void UnzipButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
-            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
-            dialog.InitialDirectory = ".";
-            dialog.IsFolderPicker = false;
+            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip")
+            {
+                InitialDirectory = ".",
+                IsFolderPicker = false
+            };
             file_selected = false;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
@@ -250,9 +261,11 @@ namespace UnzipUnlinkGUI
         public async void UnzipandUnlinkButton_Click(object sender, RoutedEventArgs e)
         {
             DisableButtons();
-            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
-            dialog.InitialDirectory = ".";
-            dialog.IsFolderPicker = false;
+            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip")
+            {
+                InitialDirectory = ".",
+                IsFolderPicker = false
+            };
             file_selected = false;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
@@ -285,9 +298,11 @@ namespace UnzipUnlinkGUI
         {
             DisableButtons();
             LabelText = "";
-            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip");
-            dialog.InitialDirectory = ".";
-            dialog.IsFolderPicker = true;
+            CommonOpenFileDialog dialog = new CommonOpenFileDialog("*.zip")
+            {
+                InitialDirectory = ".",
+                IsFolderPicker = true
+            };
             file_selected = false;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
@@ -319,7 +334,7 @@ namespace UnzipUnlinkGUI
             AboutPage about_page = new AboutPage();
             about_page.Show();
         }
-        private void add_or_remove_tag(DicomTag tag, bool add)
+        private void Add_or_Remove_tag(DicomTag tag, bool add)
         {
             if (add)
             {
@@ -336,7 +351,7 @@ namespace UnzipUnlinkGUI
                 }
             }
         }
-        private void add_or_remove_modality(string modality, bool add)
+        private void Add_or_Remove_modality(string modality, bool add)
         {
             if (add)
             {
@@ -355,15 +370,15 @@ namespace UnzipUnlinkGUI
         }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            add_or_remove_tag(DicomTag.FrameOfReferenceUID, (bool)FoR_CheckBox.IsChecked);
-            add_or_remove_tag(DicomTag.SeriesInstanceUID, (bool)SeriesUID_CheckBox.IsChecked);
-            add_or_remove_tag(DicomTag.StudyInstanceUID, (bool)StudyUID_CheckBox.IsChecked);
+            Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, (bool)FoR_CheckBox.IsChecked);
+            Add_or_Remove_tag(DicomTag.SeriesInstanceUID, (bool)SeriesUID_CheckBox.IsChecked);
+            Add_or_Remove_tag(DicomTag.StudyInstanceUID, (bool)StudyUID_CheckBox.IsChecked);
         }
         private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            add_or_remove_modality("ct", (bool)CT_CheckBox.IsChecked);
-            add_or_remove_modality("mr", (bool)MR_CheckBox.IsChecked);
-            add_or_remove_modality("pt", (bool)PET_CheckBox.IsChecked);
+            Add_or_Remove_modality("ct", (bool)CT_CheckBox.IsChecked);
+            Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
+            Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
         }
     }
 }
