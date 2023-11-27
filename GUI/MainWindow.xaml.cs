@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using itk.simple;
 using FellowOakDicom;
 using System.Linq;
+using System.Threading;
 
 namespace UnzipUnlinkGUI
 {
@@ -79,6 +80,7 @@ namespace UnzipUnlinkGUI
         string zip_file;
         private readonly List<string> modalities;
         private readonly List<DicomTag> tags;
+        bool is_network;
         public MainWindow()
         {
             InitializeComponent();
@@ -209,9 +211,11 @@ namespace UnzipUnlinkGUI
         public void CheckNetwork(string path)
         {
             DriveInfo info = new DriveInfo(Path.GetPathRoot(path));
+            is_network = false;
             if (info.DriveType == DriveType.Network)
             {
-                RecommendText = "Highly recommend copying this locally to speed up process!";
+                is_network = true;
+                RecommendText = "Highly recommend copying this locally to speed up process, program can crash if admin rights are not present!";
             }
         }
         public async Task Unzip(string zip_file)
