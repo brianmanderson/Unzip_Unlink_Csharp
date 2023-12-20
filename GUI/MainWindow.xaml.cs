@@ -204,6 +204,10 @@ namespace UnzipUnlinkGUI
                     }
                     catch
                     {
+                        using (StreamWriter outputFile = new StreamWriter(Path.Combine(".", $"Failed_{dicom_file}.txt")))
+                        {
+                            outputFile.WriteLine("Test");
+                        }
                     }
                 });
             }
@@ -215,7 +219,7 @@ namespace UnzipUnlinkGUI
             if (info.DriveType == DriveType.Network)
             {
                 is_network = true;
-                RecommendText = "Highly recommend copying this locally to speed up process, program can crash if admin rights are not present!";
+                RecommendText = "Highly recommend copying this locally to speed up process, program can crash";
             }
         }
         public async Task Unzip(string zip_file)
