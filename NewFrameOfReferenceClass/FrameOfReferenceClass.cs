@@ -7,7 +7,6 @@ using itk.simple;
 using FellowOakDicom;
 using System.IO;
 using System.Windows;
-using System.Windows.Forms;
 
 namespace NewFrameOfReferenceClass
 {
