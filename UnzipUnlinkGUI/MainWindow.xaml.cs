@@ -174,7 +174,7 @@ namespace UnzipUnlinkGUI
                 }
                 if (modalities.Contains(modality.ToLower()))
                 {
-                    series_instance_dict.Add(modality.ToLower(), new List<string>() { modality, frame_of_reference});
+                    series_instance_dict.Add(dicom_series_instance_uid, new List<string>() { modality, frame_of_reference});
                 }
             }
             LabelText = "Changing!";
@@ -192,7 +192,7 @@ namespace UnzipUnlinkGUI
                 }
                 dicom_series_instance_dict.Add(dicom_series_instance_uid, new_uids);
             }
-            if (modalities.Contains("ct*"))
+            if ((bool)FoR_CheckBox.IsChecked)
             {
                 if (tags.Contains(DicomTag.FrameOfReferenceUID))
                 {
@@ -431,8 +431,6 @@ namespace UnzipUnlinkGUI
             if (is_4dct)
             {
                 CT_CheckBox.IsEnabled = false;
-                Add_or_Remove_modality("ct*", true);
-                Add_or_Remove_modality("ct", false);
             }
             else
             {
