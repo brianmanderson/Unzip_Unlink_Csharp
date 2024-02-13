@@ -153,43 +153,75 @@ namespace UnzipUnlinkGUI
             LabelText = "Characterizing directory...Please wait";
             ProgressText = "Overall Progress";
             dicomParser.Characterize_Directory(selected_folder);
-            List<string> mr_series_uids = new List<string>();
+            Dictionary<string, List<string>> series_instance_dict = new Dictionary<string, List<string>>();
             foreach (string dicom_series_instance_uid in dicomParser.dicom_series_instance_uids)
             {
-                string modality;
+                string modality, frame_of_reference;
                 VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
                 DicomUID uid = dicomParser.series_instance_dict[dicom_series_instance_uid];
                 dicomParser.image_reader.SetFileName(dicom_names[0]);
+                frame_of_reference = "";
+                modality = "null";
                 try
                 {
                     dicomParser.image_reader.ReadImageInformation();
                     modality = dicomParser.image_reader.GetMetaData("0008|0060");
+                    frame_of_reference = dicomParser.image_reader.GetMetaData("0020|0052");
                 }
                 catch
                 {
                     modality = "null";
-                    continue;
                 }
                 if (modalities.Contains(modality.ToLower()))
                 {
-                    mr_series_uids.Add(dicom_series_instance_uid);
+                    series_instance_dict.Add(modality.ToLower(), new List<string>() { modality, frame_of_reference});
                 }
             }
             LabelText = "Changing!";
             float folder_counter = 0;
-            float total_folders = mr_series_uids.Count;
-            foreach (string dicom_series_instance_uid in mr_series_uids)
+            float total_folders = series_instance_dict.Count;
+            Dictionary<string, List<DicomUID>> dicom_series_instance_dict = new Dictionary<string, List<DicomUID>>();
+            List<DicomUID> new_uids;
+            List<DicomUID> existing_frame_of_ref_uids = new List<DicomUID>();
+            foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
+            {
+                new_uids = new List<DicomUID>();
+                for (int i = 0; i < tags.Count; i++)
+                {
+                    new_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
+                }
+                dicom_series_instance_dict.Add(dicom_series_instance_uid, new_uids);
+            }
+            if (modalities.Contains("ct*"))
+            {
+                if (tags.Contains(DicomTag.FrameOfReferenceUID))
+                {
+                    Dictionary<string, DicomUID> old_FoR_to_new_dict = new Dictionary<string, DicomUID>();
+                    foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
+                    {
+                        string modality = series_instance_dict[dicom_series_instance_uid][0];
+                        if (modality == "ct")
+                        {
+                            string frame_of_reference = series_instance_dict[dicom_series_instance_uid][1];
+                            if (!old_FoR_to_new_dict.ContainsKey(frame_of_reference))
+                            {
+                                DicomUID new_frame_of_referece = DicomUIDGenerator.GenerateDerivedFromUUID();
+                                old_FoR_to_new_dict.Add(frame_of_reference, new_frame_of_referece);
+                            }
+                            new_uids = dicom_series_instance_dict[dicom_series_instance_uid];
+                            new_uids[tags.IndexOf(DicomTag.FrameOfReferenceUID)] = old_FoR_to_new_dict[frame_of_reference];
+                        }
+                    }
+                }
+            }
+            foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
             {
                 ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
                 folder_counter++;
                 VectorString dicom_names = dicomParser.series_instance_uids_dict[dicom_series_instance_uid];
                 float file_counter = 0;
                 float total_files = dicom_names.Count;
-                List<DicomUID> new_uids = new List<DicomUID>();
-                for (int i = 0; i < tags.Count; i++)
-                {
-                    new_uids.Add(DicomUIDGenerator.GenerateDerivedFromUUID());
-                }
+                new_uids = dicom_series_instance_dict[dicom_series_instance_uid];
                 Parallel.ForEach(dicom_names, dicom_file =>
                 {
                     file_counter++;
@@ -404,7 +436,7 @@ namespace UnzipUnlinkGUI
             }
             else
             {
-                CT_CheckBox.IsEnabled = false;
+                CT_CheckBox.IsEnabled = true;
             }
             Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
             Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
