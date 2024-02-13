@@ -192,7 +192,7 @@ namespace UnzipUnlinkGUI
                 }
                 dicom_series_instance_dict.Add(dicom_series_instance_uid, new_uids);
             }
-            if ((bool)FoR_CheckBox.IsChecked)
+            if (modalities.Contains("ct*"))
             {
                 if (tags.Contains(DicomTag.FrameOfReferenceUID))
                 {
@@ -200,7 +200,7 @@ namespace UnzipUnlinkGUI
                     foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
                     {
                         string modality = series_instance_dict[dicom_series_instance_uid][0];
-                        if (modality == "ct")
+                        if (modality == "CT")
                         {
                             string frame_of_reference = series_instance_dict[dicom_series_instance_uid][1];
                             if (!old_FoR_to_new_dict.ContainsKey(frame_of_reference))
@@ -436,6 +436,7 @@ namespace UnzipUnlinkGUI
             {
                 CT_CheckBox.IsEnabled = true;
             }
+            Add_or_Remove_modality("ct*", (bool)CT4D_CheckBox.IsChecked);
             Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
             Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
         }
