@@ -174,7 +174,7 @@ namespace UnzipUnlinkGUI
                 }
                 if (modalities.Contains(modality.ToLower()))
                 {
-                    series_instance_dict.Add(dicom_series_instance_uid, new List<string>() { modality, frame_of_reference});
+                    series_instance_dict.Add(dicom_series_instance_uid, new List<string>() { modality, frame_of_reference });
                 }
             }
             LabelText = "Changing!";
@@ -411,9 +411,23 @@ namespace UnzipUnlinkGUI
         }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, (bool)FoR_CheckBox.IsChecked);
-            Add_or_Remove_tag(DicomTag.SeriesInstanceUID, (bool)SeriesUID_CheckBox.IsChecked);
-            Add_or_Remove_tag(DicomTag.StudyInstanceUID, (bool)StudyUID_CheckBox.IsChecked);
+            bool for_UID_bool, series_uid_bool, study_uid_bool;
+            for_UID_bool = (bool)FoR_CheckBox.IsChecked;
+            series_uid_bool = (bool)SeriesUID_CheckBox.IsChecked;
+            study_uid_bool = (bool)StudyUID_CheckBox.IsChecked;
+            Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, for_UID_bool);
+            Add_or_Remove_tag(DicomTag.SeriesInstanceUID, series_uid_bool);
+            Add_or_Remove_tag(DicomTag.StudyInstanceUID, study_uid_bool);
+            if (for_UID_bool || series_uid_bool ||  study_uid_bool)
+            {
+                UnzipandUnlinkButton.IsEnabled = true;
+                UnlinkButton.IsEnabled = true;
+            }
+            else
+            {
+                UnzipandUnlinkButton.IsEnabled = false;
+                UnlinkButton.IsEnabled = false;
+            }
         }
         private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
         {
