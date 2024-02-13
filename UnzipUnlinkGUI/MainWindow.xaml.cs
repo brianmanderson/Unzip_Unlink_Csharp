@@ -386,6 +386,21 @@ namespace UnzipUnlinkGUI
         private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             Add_or_Remove_modality("ct", (bool)CT_CheckBox.IsChecked);
+            bool enable_4DCT = CT_CheckBox.IsChecked ?? false;
+            if (enable_4DCT)
+            {
+                CT4D_CheckBox.IsEnabled = true;
+            }
+            else
+            {
+                CT4D_CheckBox.IsEnabled= false;
+            }
+            bool is_4dct = CT4D_CheckBox.IsChecked ?? false;
+            if (is_4dct)
+            {
+                Add_or_Remove_modality("ct*", true);
+                Add_or_Remove_modality("ct", false);
+            }
             Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
             Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
         }

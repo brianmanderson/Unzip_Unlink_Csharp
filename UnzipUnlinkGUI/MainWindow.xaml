@@ -10,6 +10,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,64,70,274">
             <StackPanel>
                 <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
+                <CheckBox x:Name="CT4D_CheckBox" Content="4DCT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
                 <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
                 <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
             </StackPanel>
