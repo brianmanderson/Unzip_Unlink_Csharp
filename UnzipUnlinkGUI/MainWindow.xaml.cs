@@ -398,8 +398,13 @@ namespace UnzipUnlinkGUI
             bool is_4dct = CT4D_CheckBox.IsChecked ?? false;
             if (is_4dct)
             {
+                CT_CheckBox.IsEnabled = false;
                 Add_or_Remove_modality("ct*", true);
                 Add_or_Remove_modality("ct", false);
+            }
+            else
+            {
+                CT_CheckBox.IsEnabled = false;
             }
             Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
             Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
