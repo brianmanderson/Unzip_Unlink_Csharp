@@ -1,0 +1,52 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'   # Triggers on version tag pushes, e.g., v1.0.0
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: '7.0.x'  # Adjust the version as per your project requirements
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build solution
+      run: dotnet build --configuration Release
+
+    - name: Publish the project
+      run: dotnet publish -c Release -o ./publish
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: my-csharp-app
+        path: ./publish
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: my-csharp-app
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./my-csharp-app/**/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
