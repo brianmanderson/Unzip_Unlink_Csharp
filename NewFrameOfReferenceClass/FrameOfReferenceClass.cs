@@ -13,22 +13,25 @@ namespace NewFrameOfReferenceClass
     public class FrameOfReferenceClass
     {
         public Dictionary<string, VectorString> series_instance_uids_dict = new Dictionary<string, VectorString>();
-        public VectorString dicom_series_instance_uids;
+        public List<string> dicom_series_instance_uids;
         public Dictionary<string, DicomUID> series_instance_dict = new Dictionary<string, DicomUID>();
         public ImageFileReader image_reader = new ImageFileReader();
         public FrameOfReferenceClass()
         {
+            dicom_series_instance_uids = new List<string>();
         }
         public void __reset__()
         {
             series_instance_uids_dict = new Dictionary<string, VectorString>();
             series_instance_dict = new Dictionary<string, DicomUID>();
+            dicom_series_instance_uids = new List<string>();
         }
         public void Characterize_Directory(string directory)
         {
-            dicom_series_instance_uids = ImageSeriesReader.GetGDCMSeriesIDs(directory);
-            foreach (string series_instance_uid in dicom_series_instance_uids)
+            VectorString uids = ImageSeriesReader.GetGDCMSeriesIDs(directory);
+            foreach (string series_instance_uid in uids)
             {
+                dicom_series_instance_uids.Add(series_instance_uid);
                 VectorString dicom_names = ImageSeriesReader.GetGDCMSeriesFileNames(directory, series_instance_uid);
                 series_instance_uids_dict.Add(series_instance_uid, dicom_names);
                 if (!series_instance_dict.ContainsKey(series_instance_uid))
@@ -36,6 +39,10 @@ namespace NewFrameOfReferenceClass
                     DicomUID new_uid = DicomUIDGenerator.GenerateDerivedFromUUID();
                     series_instance_dict.Add(series_instance_uid, new_uid);
                 }
+            }
+            foreach (string subdirectory in Directory.GetDirectories(directory))
+            {
+                Characterize_Directory(subdirectory);
             }
         }
         public void ReWriteFrameOfReference(string modality_override)
