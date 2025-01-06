@@ -9,17 +9,16 @@
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,54,70,274">
             <StackPanel>
-                <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
-                <CheckBox x:Name="CT4D_CheckBox" Content="4DCT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
-                <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
-                <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
+                <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
+                <CheckBox x:Name="CT4D_CheckBox" Content="4DCT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
+                <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
+                <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
             </StackPanel>
         </ScrollViewer>
         <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,54,404,274">
             <StackPanel>
                 <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
                 <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="StudyUID_CheckBox" Content="Study Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
             </StackPanel>
         </ScrollViewer>
         <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="30,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipButton_Click"/>

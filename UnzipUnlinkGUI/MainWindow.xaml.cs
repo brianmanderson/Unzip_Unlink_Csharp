@@ -252,28 +252,65 @@ namespace UnzipUnlinkGUI
             if (info.DriveType == DriveType.Network)
             {
                 is_network = true;
-                RecommendText = "Highly recommend copying this locally to speed up process, program can crash";
+                RecommendText = "Highly recommend copying this locally to speed up process";
+            }
+        }
+        private static void CopyFilesRecursively(string sourcePath, string targetPath)
+        {
+            //Now Create all of the directories
+            foreach (string dirPath in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories))
+            {
+                Directory.CreateDirectory(dirPath.Replace(sourcePath, targetPath));
+            }
+
+            //Copy all the files & Replaces any files with the same name
+            foreach (string newPath in Directory.GetFiles(sourcePath, "*.*", SearchOption.AllDirectories))
+            {
+                File.Copy(newPath, newPath.Replace(sourcePath, targetPath), true);
             }
         }
         public async Task Unzip(string zip_file)
         {
+            string copy_location = Path.Combine(".", "LocalData");
+            if (!Directory.Exists(copy_location))
+            {
+                Directory.CreateDirectory(copy_location);
+            }
+            foreach (string file in Directory.GetFiles(copy_location))
+            {
+                File.Delete(file);
+            }
+            File.Copy(zip_file, Path.Combine(copy_location, Path.GetFileName(zip_file)));
             await Task.Run(() =>
             {
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
-                string zip_directory = Path.GetDirectoryName(zip_file);
-                UnzipUtils.UnzipFile(zip_file, zip_directory);
+                UnzipUtils.UnzipFile(Path.Combine(copy_location, Path.GetFileName(zip_file)), copy_location);
                 LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             });
+            CopyFilesRecursively(copy_location, Path.GetDirectoryName(zip_file));
+            Directory.Delete(copy_location, true);
         }
 
         public async Task Unlink(string selected_folder, List<DicomTag> tags, List<string> modalities)
         {
+            string copy_location = Path.Combine(".", "LocalData");
+            if (!Directory.Exists(copy_location))
+            {
+                Directory.CreateDirectory(copy_location);
+            }
+            foreach (string file in Directory.GetFiles(copy_location))
+            {
+                File.Delete(file);
+            }
+            CopyFilesRecursively(selected_folder, copy_location);
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ReWriteFrameOfReference(selected_folder, tags, modalities);
+                ReWriteFrameOfReference(copy_location, tags, modalities);
                 LabelText = "Completed!";
             });
+            CopyFilesRecursively(copy_location, selected_folder);
+            Directory.Delete(copy_location, true);
         }
         public async void UnzipButton_Click(object sender, RoutedEventArgs e)
         {
@@ -416,52 +453,49 @@ namespace UnzipUnlinkGUI
         }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            bool for_UID_bool, series_uid_bool, study_uid_bool;
+            bool for_UID_bool, series_uid_bool, ct_bool, ct_4d_bool, mr_bool, pet_bool;
             for_UID_bool = (bool)FoR_CheckBox.IsChecked;
             series_uid_bool = (bool)SeriesUID_CheckBox.IsChecked;
-            study_uid_bool = (bool)StudyUID_CheckBox.IsChecked;
             Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, for_UID_bool);
+
+
             Add_or_Remove_tag(DicomTag.SeriesInstanceUID, series_uid_bool);
-            Add_or_Remove_tag(DicomTag.StudyInstanceUID, study_uid_bool);
-            if (for_UID_bool || series_uid_bool ||  study_uid_bool)
+            ct_bool = (bool)CT_CheckBox.IsChecked;
+            Add_or_Remove_modality("ct", ct_bool);
+            ct_4d_bool = (bool)CT4D_CheckBox.IsChecked;
+            mr_bool = (bool)MR_CheckBox.IsChecked;
+            pet_bool = (bool)PET_CheckBox.IsChecked;
+            CT4D_CheckBox.IsEnabled = false;
+            CT_CheckBox.IsEnabled = true;
+            if (ct_bool)
+            {
+                CT4D_CheckBox.IsEnabled = true;
+            }
+            if (ct_4d_bool)
+            {
+                CT_CheckBox.IsEnabled = false;
+            }
+            Add_or_Remove_modality("ct*", ct_4d_bool);
+            Add_or_Remove_modality("mr", mr_bool);
+            Add_or_Remove_modality("pt", pet_bool);
+
+            UnzipandUnlinkButton.IsEnabled = false;
+            UnlinkButton.IsEnabled = false;
+            if (for_UID_bool || series_uid_bool)
             {
                 SOPInstanceUID_CheckBox.IsChecked = true;
-                Add_or_Remove_tag(DicomTag.SOPInstanceUID, true);
-                UnzipandUnlinkButton.IsEnabled = true;
-                UnlinkButton.IsEnabled = true;
+                if (ct_bool || mr_bool || pet_bool)
+                {
+                    Add_or_Remove_tag(DicomTag.SOPInstanceUID, true);
+                    UnzipandUnlinkButton.IsEnabled = true;
+                    UnlinkButton.IsEnabled = true;
+                }
             }
             else
             {
                 SOPInstanceUID_CheckBox.IsChecked = false;
                 Add_or_Remove_tag(DicomTag.SOPInstanceUID, false);
-                UnzipandUnlinkButton.IsEnabled = false;
-                UnlinkButton.IsEnabled = false;
             }
-        }
-        private void ModalityCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            Add_or_Remove_modality("ct", (bool)CT_CheckBox.IsChecked);
-            bool enable_4DCT = CT_CheckBox.IsChecked ?? false;
-            if (enable_4DCT)
-            {
-                CT4D_CheckBox.IsEnabled = true;
-            }
-            else
-            {
-                CT4D_CheckBox.IsEnabled= false;
-            }
-            bool is_4dct = CT4D_CheckBox.IsChecked ?? false;
-            if (is_4dct)
-            {
-                CT_CheckBox.IsEnabled = false;
-            }
-            else
-            {
-                CT_CheckBox.IsEnabled = true;
-            }
-            Add_or_Remove_modality("ct*", (bool)CT4D_CheckBox.IsChecked);
-            Add_or_Remove_modality("mr", (bool)MR_CheckBox.IsChecked);
-            Add_or_Remove_modality("pt", (bool)PET_CheckBox.IsChecked);
         }
     }
 }
