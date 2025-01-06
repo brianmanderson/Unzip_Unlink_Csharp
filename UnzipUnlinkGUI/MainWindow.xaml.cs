@@ -281,14 +281,15 @@ namespace UnzipUnlinkGUI
             {
                 File.Delete(file);
             }
+            LabelText = "Working, please be patient...";
             File.Copy(zip_file, Path.Combine(copy_location, Path.GetFileName(zip_file)));
             await Task.Run(() =>
             {
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
                 UnzipUtils.UnzipFile(Path.Combine(copy_location, Path.GetFileName(zip_file)), copy_location);
-                LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             });
             CopyFilesRecursively(copy_location, Path.GetDirectoryName(zip_file));
+            LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
             Directory.Delete(copy_location, true);
         }
 
@@ -304,14 +305,16 @@ namespace UnzipUnlinkGUI
             {
                 File.Delete(file);
             }
+            LabelText = "Working, please be patient...";
             CopyFilesRecursively(selected_folder, copy_location);
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
                 ReWriteFrameOfReference(copy_location, tags, modalities);
-                LabelText = "Completed!";
             });
+            LabelText = "Cleaning up, please be patient!";
             CopyFilesRecursively(copy_location, selected_folder);
+            LabelText = "Completed!";
             Directory.Delete(copy_location, true);
         }
         public async void UnzipButton_Click(object sender, RoutedEventArgs e)
