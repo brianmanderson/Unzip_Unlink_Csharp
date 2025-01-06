@@ -272,10 +272,11 @@ namespace UnzipUnlinkGUI
         public async Task Unzip(string zip_file)
         {
             string copy_location = Path.Combine(".", "LocalData");
-            if (!Directory.Exists(copy_location))
+            if (Directory.Exists(copy_location))
             {
-                Directory.CreateDirectory(copy_location);
+                Directory.Delete(copy_location, true);
             }
+            Directory.CreateDirectory(copy_location);
             foreach (string file in Directory.GetFiles(copy_location))
             {
                 File.Delete(file);
@@ -294,10 +295,11 @@ namespace UnzipUnlinkGUI
         public async Task Unlink(string selected_folder, List<DicomTag> tags, List<string> modalities)
         {
             string copy_location = Path.Combine(".", "LocalData");
-            if (!Directory.Exists(copy_location))
+            if (Directory.Exists(copy_location))
             {
-                Directory.CreateDirectory(copy_location);
+                Directory.Delete(copy_location, true);
             }
+            Directory.CreateDirectory(copy_location);
             foreach (string file in Directory.GetFiles(copy_location))
             {
                 File.Delete(file);
