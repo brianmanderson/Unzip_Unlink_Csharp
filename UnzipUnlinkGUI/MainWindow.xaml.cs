@@ -81,10 +81,12 @@ namespace UnzipUnlinkGUI
         string zip_file;
         private readonly List<string> modalities;
         private readonly List<DicomTag> tags;
+        public string local_temp_directory;
         public bool is_network;
         public MainWindow()
         {
             InitializeComponent();
+            local_temp_directory = Path.Combine(Path.GetTempPath(), "LocalTempData");
             modalities = new List<string>();
             tags = new List<DicomTag>();
             HideText();
@@ -271,51 +273,45 @@ namespace UnzipUnlinkGUI
         }
         public async Task Unzip(string zip_file)
         {
-            string copy_location = Path.Combine(".", "LocalData");
-            if (Directory.Exists(copy_location))
+            if (Directory.Exists(local_temp_directory))
             {
-                Directory.Delete(copy_location, true);
+                Directory.Delete(local_temp_directory, true);
             }
-            Directory.CreateDirectory(copy_location);
-            foreach (string file in Directory.GetFiles(copy_location))
-            {
-                File.Delete(file);
-            }
+            Directory.CreateDirectory(local_temp_directory);
             LabelText = "Working, please be patient...";
-            File.Copy(zip_file, Path.Combine(copy_location, Path.GetFileName(zip_file)));
+            File.Copy(zip_file, Path.Combine(local_temp_directory, Path.GetFileName(zip_file)));
             await Task.Run(() =>
             {
                 LabelText = $"Unzipping: {Path.GetFileName(zip_file)}!";
-                UnzipUtils.UnzipFile(Path.Combine(copy_location, Path.GetFileName(zip_file)), copy_location);
+                UnzipUtils.UnzipFile(Path.Combine(local_temp_directory, Path.GetFileName(zip_file)), local_temp_directory);
             });
-            CopyFilesRecursively(copy_location, Path.GetDirectoryName(zip_file));
+            CopyFilesRecursively(local_temp_directory, Path.GetDirectoryName(zip_file));
             LabelText = $"Finished unzipping: {Path.GetFileName(zip_file)}!";
-            Directory.Delete(copy_location, true);
+            Directory.Delete(local_temp_directory, true);
         }
 
         public async Task Unlink(string selected_folder, List<DicomTag> tags, List<string> modalities)
         {
-            string copy_location = Path.Combine(".", "LocalData");
-            if (Directory.Exists(copy_location))
+            if (Directory.Exists(local_temp_directory))
             {
-                Directory.Delete(copy_location, true);
+                Directory.Delete(local_temp_directory, true);
             }
-            Directory.CreateDirectory(copy_location);
-            foreach (string file in Directory.GetFiles(copy_location))
+            Directory.CreateDirectory(local_temp_directory);
+            foreach (string file in Directory.GetFiles(local_temp_directory))
             {
                 File.Delete(file);
             }
             LabelText = "Working, please be patient...";
-            CopyFilesRecursively(selected_folder, copy_location);
+            CopyFilesRecursively(selected_folder, local_temp_directory);
             await Task.Run(() =>
             {
                 LabelText = "Unlinking files";
-                ReWriteFrameOfReference(copy_location, tags, modalities);
+                ReWriteFrameOfReference(local_temp_directory, tags, modalities);
             });
             LabelText = "Cleaning up, please be patient!";
-            CopyFilesRecursively(copy_location, selected_folder);
+            CopyFilesRecursively(local_temp_directory, selected_folder);
             LabelText = "Completed!";
-            Directory.Delete(copy_location, true);
+            Directory.Delete(local_temp_directory, true);
         }
         public async void UnzipButton_Click(object sender, RoutedEventArgs e)
         {
