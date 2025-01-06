@@ -14,7 +14,6 @@ namespace Unzip_Unlink
 {
     internal class Program
     {
-        public bool folder_changed;
         static string file_paths_file = Path.Combine(".", $"FilePaths.txt");
         public FrameOfReferenceClass FrameChanger = new FrameOfReferenceClass();
         static List<string> default_file_paths = new List<string> { @"C:\Users\markb\Temp" };

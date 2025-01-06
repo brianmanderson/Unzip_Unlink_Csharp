@@ -15,7 +15,7 @@
                 <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ModalityCheckBox_Checked" Unchecked="ModalityCheckBox_Checked"/>
             </StackPanel>
         </ScrollViewer>
-        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,64,363,274">
+        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,64,404,274">
             <StackPanel>
                 <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
                 <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
@@ -37,5 +37,7 @@
         <Button x:Name="AboutButton" Content="About!" HorizontalAlignment="Left" Background="LightGreen" Margin="380,300,0,0" VerticalAlignment="Top" Height="71" Width="150" Click="AboutButton_Click"/>
         <Label Content="Things you want to change" HorizontalAlignment="Left" Margin="28,33,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
         <Label Content="Modalities you want to change" HorizontalAlignment="Left" Margin="380,33,0,0" VerticalAlignment="Top" Height="26" Width="215"/>
+        <Label Content="Things you should" HorizontalAlignment="Left" Margin="212,33,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
+        <CheckBox x:Name="SOPInstanceUID_CheckBox" Content="SOP Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="SOPInstanceCheckBox_Checked" Margin="218,64,0,0"/>
     </Grid>
 </Window>

@@ -81,7 +81,7 @@ namespace UnzipUnlinkGUI
         string zip_file;
         private readonly List<string> modalities;
         private readonly List<DicomTag> tags;
-        bool is_network;
+        public bool is_network;
         public MainWindow()
         {
             InitializeComponent();
@@ -409,24 +409,31 @@ namespace UnzipUnlinkGUI
                 }
             }
         }
+        private void SOPInstanceCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            bool sop_instance_uid_bool = (bool)SOPInstanceUID_CheckBox.IsChecked;
+            Add_or_Remove_tag(DicomTag.SOPInstanceUID, sop_instance_uid_bool);
+        }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            bool for_UID_bool, series_uid_bool, study_uid_bool, sop_instance_uid_bool;
+            bool for_UID_bool, series_uid_bool, study_uid_bool;
             for_UID_bool = (bool)FoR_CheckBox.IsChecked;
             series_uid_bool = (bool)SeriesUID_CheckBox.IsChecked;
             study_uid_bool = (bool)StudyUID_CheckBox.IsChecked;
-            sop_instance_uid_bool = (bool)SOPInstanceUID_CheckBox.IsChecked;
             Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, for_UID_bool);
             Add_or_Remove_tag(DicomTag.SeriesInstanceUID, series_uid_bool);
             Add_or_Remove_tag(DicomTag.StudyInstanceUID, study_uid_bool);
-            Add_or_Remove_tag(DicomTag.SOPInstanceUID, sop_instance_uid_bool);
-            if (for_UID_bool || series_uid_bool ||  study_uid_bool || sop_instance_uid_bool)
+            if (for_UID_bool || series_uid_bool ||  study_uid_bool)
             {
+                SOPInstanceUID_CheckBox.IsChecked = true;
+                Add_or_Remove_tag(DicomTag.SOPInstanceUID, true);
                 UnzipandUnlinkButton.IsEnabled = true;
                 UnlinkButton.IsEnabled = true;
             }
             else
             {
+                SOPInstanceUID_CheckBox.IsChecked = false;
+                Add_or_Remove_tag(DicomTag.SOPInstanceUID, false);
                 UnzipandUnlinkButton.IsEnabled = false;
                 UnlinkButton.IsEnabled = false;
             }
