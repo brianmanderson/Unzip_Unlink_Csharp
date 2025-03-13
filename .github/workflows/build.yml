@@ -29,7 +29,7 @@ jobs:
         run: dotnet publish -c Release -o ./publish
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4
         with:
           name: my-csharp-app
           path: ./publish
@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v3.1.2
+        uses: actions/download-artifact@v4
         with:
           name: my-csharp-app
 
