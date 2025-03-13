@@ -11,29 +11,24 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      # If you are targeting .NET Core or .NET 5+, uncomment and update the version below:
-      # - name: Setup .NET
-      #   uses: actions/setup-dotnet@v3
-      #   with:
-      #     dotnet-version: '6.0.x'  # Use a supported .NET version
-
+      # No need to install .NET since Windows runners include .NET Framework 4.8 by default.
       - name: Restore dependencies
         run: dotnet restore
 
       - name: Build solution
         run: dotnet build --configuration Release
 
-      - name: Publish the project
-        run: dotnet publish -c Release -o ./publish
+      - name: Publish project
+        run: dotnet publish --configuration Release -o publish
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: my-csharp-app
-          path: ./publish
+          path: publish
 
   release:
     needs: build
@@ -48,6 +43,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./my-csharp-app/**/*
+          files: my-csharp-app/**/*   # The artifact is downloaded into a folder named "my-csharp-app"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
