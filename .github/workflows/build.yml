@@ -14,10 +14,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '4.8.0'  # Adjust the version as per your project requirements
+      # If you are targeting .NET Core or .NET 5+, uncomment and update the version below:
+      # - name: Setup .NET
+      #   uses: actions/setup-dotnet@v3
+      #   with:
+      #     dotnet-version: '6.0.x'  # Use a supported .NET version
 
       - name: Restore dependencies
         run: dotnet restore
