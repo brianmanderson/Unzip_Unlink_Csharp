@@ -11,42 +11,42 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v2
-      with:
-        dotnet-version: '4.8.0'  # Adjust the version as per your project requirements
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '4.8.0'  # Adjust the version as per your project requirements
 
-    - name: Restore dependencies
-      run: dotnet restore
+      - name: Restore dependencies
+        run: dotnet restore
 
-    - name: Build solution
-      run: dotnet build --configuration Release
+      - name: Build solution
+        run: dotnet build --configuration Release
 
-    - name: Publish the project
-      run: dotnet publish -c Release -o ./publish
+      - name: Publish the project
+        run: dotnet publish -c Release -o ./publish
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: my-csharp-app
-        path: ./publish
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: my-csharp-app
+          path: ./publish
 
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v2
-      with:
-        name: my-csharp-app
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: my-csharp-app
 
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ./my-csharp-app/**/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./my-csharp-app/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
