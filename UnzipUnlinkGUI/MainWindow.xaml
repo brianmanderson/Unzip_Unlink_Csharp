@@ -11,6 +11,7 @@
             <StackPanel>
                 <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
                 <CheckBox x:Name="CT4D_CheckBox" Content="4DCT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
+                <CheckBox x:Name="PETCT_CheckBox" Content="PET/CT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
                 <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
                 <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
             </StackPanel>

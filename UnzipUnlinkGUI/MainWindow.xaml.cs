@@ -216,6 +216,28 @@ namespace UnzipUnlinkGUI
                     }
                 }
             }
+            if (modalities.Contains("pt*"))
+            {
+                if (tags.Contains(DicomTag.FrameOfReferenceUID))
+                {
+                    Dictionary<string, DicomUID> old_FoR_to_new_dict = new Dictionary<string, DicomUID>();
+                    foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
+                    {
+                        string modality = series_instance_dict[dicom_series_instance_uid][0];
+                        if (modality == "CT" | modality == "PT")
+                        {
+                            string frame_of_reference = series_instance_dict[dicom_series_instance_uid][1];
+                            if (!old_FoR_to_new_dict.ContainsKey(frame_of_reference))
+                            {
+                                DicomUID new_frame_of_referece = DicomUIDGenerator.GenerateDerivedFromUUID();
+                                old_FoR_to_new_dict.Add(frame_of_reference, new_frame_of_referece);
+                            }
+                            new_uids = dicom_series_instance_dict[dicom_series_instance_uid];
+                            new_uids[tags.IndexOf(DicomTag.FrameOfReferenceUID)] = old_FoR_to_new_dict[frame_of_reference];
+                        }
+                    }
+                }
+            }
             foreach (string dicom_series_instance_uid in series_instance_dict.Keys)
             {
                 ProgressCounterfolders = (folder_counter + 1) / total_folders * 100;
@@ -454,7 +476,7 @@ namespace UnzipUnlinkGUI
         }
         private void ThingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            bool for_UID_bool, series_uid_bool, ct_bool, ct_4d_bool, mr_bool, pet_bool;
+            bool for_UID_bool, series_uid_bool, ct_bool, ct_4d_bool, mr_bool, pet_bool, petct_bool;
             for_UID_bool = (bool)FoR_CheckBox.IsChecked;
             series_uid_bool = (bool)SeriesUID_CheckBox.IsChecked;
             Add_or_Remove_tag(DicomTag.FrameOfReferenceUID, for_UID_bool);
@@ -462,23 +484,33 @@ namespace UnzipUnlinkGUI
 
             Add_or_Remove_tag(DicomTag.SeriesInstanceUID, series_uid_bool);
             ct_bool = (bool)CT_CheckBox.IsChecked;
-            Add_or_Remove_modality("ct", ct_bool);
             ct_4d_bool = (bool)CT4D_CheckBox.IsChecked;
             mr_bool = (bool)MR_CheckBox.IsChecked;
             pet_bool = (bool)PET_CheckBox.IsChecked;
+            petct_bool = (bool)PETCT_CheckBox.IsChecked;
+            Add_or_Remove_modality("ct", ct_bool);
+            Add_or_Remove_modality("pt", pet_bool);
             CT4D_CheckBox.IsEnabled = false;
+            PETCT_CheckBox.IsEnabled = false;
             CT_CheckBox.IsEnabled = true;
+            PET_CheckBox.IsEnabled = true;
             if (ct_bool)
             {
                 CT4D_CheckBox.IsEnabled = true;
+                PETCT_CheckBox.IsEnabled = true;
             }
-            if (ct_4d_bool)
+            if (ct_4d_bool | petct_bool)
             {
                 CT_CheckBox.IsEnabled = false;
             }
+            if (petct_bool)
+            {
+                PET_CheckBox.IsEnabled = false;
+                Add_or_Remove_modality("pt", true);
+            }
             Add_or_Remove_modality("ct*", ct_4d_bool);
             Add_or_Remove_modality("mr", mr_bool);
-            Add_or_Remove_modality("pt", pet_bool);
+            Add_or_Remove_modality("pt*", petct_bool);
 
             UnzipandUnlinkButton.IsEnabled = false;
             UnlinkButton.IsEnabled = false;
