@@ -255,7 +255,14 @@ namespace UnzipUnlinkGUI
                         var file = DicomFile.Open(dicom_file, FileReadOption.ReadAll);
                         for (int i = 0; i < tags.Count; i++)
                         {
-                            file.Dataset.AddOrUpdate(tags[i], new_uids[i]);
+                            if (tags[i] != DicomTag.SOPInstanceUID)
+                            {
+                                file.Dataset.AddOrUpdate(tags[i], new_uids[i]);
+                            }
+                            else
+                            {
+                                file.Dataset.AddOrUpdate(tags[i], DicomUIDGenerator.GenerateDerivedFromUUID());
+                            }
                         }
                         file.Save(dicom_file);
                     }
