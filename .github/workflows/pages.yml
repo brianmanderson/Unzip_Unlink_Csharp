@@ -1,0 +1,189 @@
+# Builds the browser-only edition (UnzipUnlink.Browser, the engine compiled to WebAssembly) and
+# publishes it to GitHub Pages. See docs/hosting-on-github-pages.md for the one-time setup.
+#
+# Deploys ONLY from a push (or manual run) on the default branch of the original repository.
+# Pull requests, forks and other branches build and test, but never deploy.
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'UnzipUnlink.Browser/**'
+      - 'UnzipUnlink.Core/**'
+      - 'UnzipUnlink.Tests/**'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'NuGet.config'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'UnzipUnlink.Browser/**'
+      - 'UnzipUnlink.Core/**'
+      - 'UnzipUnlink.Tests/**'
+      - 'Directory.Build.*'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - 'NuGet.config'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# Least privilege by default; the deploy job asks for the two extra scopes it needs.
+permissions:
+  contents: read
+
+# One deployment at a time, and a running deployment is never cancelled half-way.
+# Pull-request builds get their own group per PR and supersede each other.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages-deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  BROWSER_PROJECT: UnzipUnlink.Browser/UnzipUnlink.Browser.csproj
+  PUBLISH_DIR: publish/pages
+  SITE_DIR: publish/pages/wwwroot
+
+jobs:
+  build:
+    # Linux: the browser build and the engine tests are cross-platform, and Linux runners start
+    # faster and cost less than Windows ones. The WPF desktop app is not part of this build.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read   # configure-pages reads the site's URL (custom domain aware)
+    outputs:
+      deploy: ${{ steps.mode.outputs.deploy }}
+    steps:
+      - name: Decide whether this run may deploy
+        id: mode
+        env:
+          IS_DEFAULT_BRANCH: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+          IS_FORK: ${{ github.event.repository.fork }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != "pull_request" ] && [ "$IS_DEFAULT_BRANCH" = "true" ] && [ "$IS_FORK" != "true" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "This run will deploy to GitHub Pages."
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Build-only run (event=$EVENT, default branch=$IS_DEFAULT_BRANCH, fork=$IS_FORK)."
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # A plain (interpreted) .NET WebAssembly app needs no workload. Only native relinking or AOT
+      # does, so install wasm-tools only when the project asks for either.
+      - name: Install wasm-tools workload if the project needs it
+        run: |
+          if grep -Eiq '<(RunAOTCompilation|WasmBuildNative)>\s*true' "$BROWSER_PROJECT" Directory.Build.props 2>/dev/null; then
+            dotnet workload install wasm-tools
+          else
+            echo "No AOT / native relink requested; wasm-tools not needed."
+          fi
+
+      # The tests generate synthetic DICOM, so no patient data is involved.
+      - name: Test
+        run: dotnet test UnzipUnlink.Tests/UnzipUnlink.Tests.csproj --configuration Release
+
+      - name: Publish
+        run: dotnet publish "$BROWSER_PROJECT" --configuration Release --output "$PUBLISH_DIR"
+
+      # Gives the real base path: "/<repo>" on github.io, "" once a custom domain is set.
+      # Runs only when deploying, because it fails if Pages is not enabled (as on forks).
+      - name: Read Pages configuration
+        id: pages
+        if: steps.mode.outputs.deploy == 'true'
+        uses: actions/configure-pages@v6
+
+      - name: Prepare the site for GitHub Pages
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          PAGES_CONFIGURED: ${{ steps.pages.outcome == 'success' }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          cd "$SITE_DIR"
+          test -f index.html || { echo "::error::$SITE_DIR/index.html not found - did the publish output move?"; exit 1; }
+
+          # 1. Base path. From configure-pages when deploying; otherwise derived from the repo name
+          #    ("<owner>.github.io" repositories are served from the root).
+          if [ "$PAGES_CONFIGURED" = "true" ]; then
+            base="$PAGES_BASE_PATH"
+          elif [[ "$REPO_NAME" == *.github.io ]]; then
+            base=""
+          else
+            base="/$REPO_NAME"
+          fi
+          href="$base/"
+          grep -q '<base href="[^"]*"' index.html || { echo "::error::index.html has no <base href=\"...\"> to rewrite"; exit 1; }
+          sed -i -E "s#<base href=\"[^\"]*\"#<base href=\"${href}\"#" index.html
+          echo "base href set to: $href"
+          grep -o '<base href="[^"]*"' index.html
+
+          # 2. 404 page: the app itself, so a mistyped or deep link still lands in the app.
+          #    The absolute <base href> makes its relative asset URLs resolve from any path.
+          [ -f 404.html ] || cp index.html 404.html
+
+          # 3. .nojekyll: Actions deployments are not run through Jekyll, but this keeps folders
+          #    starting with "_" (such as _framework) served if the site is ever deployed from a branch.
+          touch .nojekyll
+
+          # 4. Pre-compressed copies: GitHub Pages never serves .br/.gz in place of the original
+          #    (it compresses on the fly itself), so they only add size. Delete a copy only when
+          #    the uncompressed original sits beside it.
+          removed=0
+          while IFS= read -r -d '' f; do
+            if [ -f "${f%.*}" ]; then rm -f "$f"; removed=$((removed+1)); fi
+          done < <(find . -type f \( -name '*.br' -o -name '*.gz' \) -print0)
+          echo "Removed $removed pre-compressed duplicates."
+
+          # 5. GitHub Pages limits: 100 MB per file (hard), 1 GB per site (published limit).
+          big=$(find . -type f -size +100M)
+          if [ -n "$big" ]; then echo "::error::Files over the 100 MB GitHub Pages limit:"; echo "$big"; exit 1; fi
+          size_kb=$(du -sk . | cut -f1)
+          echo "Site size: $((size_kb / 1024)) MB in $(find . -type f | wc -l) files."
+          if [ "$size_kb" -gt 1000000 ]; then echo "::error::Site is over the 1 GB GitHub Pages limit."; exit 1; fi
+          echo "### Pages build" >> "$GITHUB_STEP_SUMMARY"
+          echo "- base href: \`$href\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- size: $((size_kb / 1024)) MB" >> "$GITHUB_STEP_SUMMARY"
+          echo "- deploys: ${{ steps.mode.outputs.deploy }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Pages artifact
+        if: steps.mode.outputs.deploy == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ env.SITE_DIR }}
+          include-hidden-files: true   # keep .nojekyll
+
+      # Build-only runs keep the prepared site for a week so a reviewer can download and try it.
+      - name: Upload site for review
+        if: steps.mode.outputs.deploy != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-site
+          path: ${{ env.SITE_DIR }}
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to prove the deployment comes from this workflow (OIDC)
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

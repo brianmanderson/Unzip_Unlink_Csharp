@@ -1,0 +1,12 @@
+{
+  "name": "unzipunlink-browser-check",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end check of the browser edition in an installed Edge or Chrome (no browser download).",
+  "scripts": {
+    "check": "node browser-check.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

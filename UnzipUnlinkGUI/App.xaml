@@ -1,9 +1,7 @@
-﻿<Application x:Class="UnzipUnlinkGUI.App"
+<Application x:Class="UnzipUnlinkGUI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:UnzipUnlinkGUI"
-             StartupUri="MainWindow.xaml">
-    <Application.Resources>
-         
-    </Application.Resources>
+             ThemeMode="System">
+    <!-- ThemeMode="System" switches on the built-in WPF Fluent theme and follows Windows light / dark.
+         The window is created in App.xaml.cs (it needs the command line), so there is no StartupUri. -->
 </Application>

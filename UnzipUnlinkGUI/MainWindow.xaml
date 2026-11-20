@@ -1,43 +1,700 @@
-﻿<Window x:Class="UnzipUnlinkGUI.MainWindow"
+<Window x:Class="UnzipUnlinkGUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:UnzipUnlinkGUI"
+        xmlns:vm="clr-namespace:UnzipUnlinkGUI.ViewModels"
         mc:Ignorable="d"
-        Title="MainWindow" Height="425" Width="600">
-    <Grid>
-        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="380,54,70,274">
-            <StackPanel>
-                <CheckBox x:Name="CT_CheckBox" Content="CT" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="CT4D_CheckBox" Content="4DCT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="PETCT_CheckBox" Content="PET/CT" IsEnabled="False" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="MR_CheckBox" Content="MR" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="PET_CheckBox" Content="PET" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-            </StackPanel>
-        </ScrollViewer>
-        <ScrollViewer VerticalScrollBarVisibility="Visible" Margin="30,54,404,274">
-            <StackPanel>
-                <CheckBox x:Name="FoR_CheckBox" Content="Frame of Reference" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-                <CheckBox x:Name="SeriesUID_CheckBox" Content="Series Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="ThingCheckBox_Checked"/>
-            </StackPanel>
-        </ScrollViewer>
-        <Button Name="UnzipButton" Content="Unzip File" HorizontalAlignment="Left" Margin="30,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipButton_Click"/>
-        <Button x:Name="UnlinkButton" Content="Run on DICOM in Folder" IsEnabled="False" HorizontalAlignment="Left" Margin="380,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnlinkButton_Click"/>
-        <Button x:Name="UnzipandUnlinkButton" Content="Unzip File and Run" IsEnabled="False" HorizontalAlignment="Left" Margin="211,150,0,0" VerticalAlignment="Top" Height="50" Width="150" Click="UnzipandUnlinkButton_Click"/>
-        <Label x:Name="StatusLabel" Content="" HorizontalAlignment="Left" VerticalAlignment="Top" Height="33" Width="483" Margin="30,254,0,0"/>
-        <Label Content="This tool is created to help unzip files, and change DICOM" HorizontalAlignment="Left" VerticalAlignment="Top" Height="26" Width="488" Margin="106,0,0,0"/>
-        <TextBlock HorizontalAlignment="Left" Margin="30,339,0,0" TextWrapping="Wrap" Text="For issues please go to" VerticalAlignment="Top" Width="332"/>
-        <TextBlock HorizontalAlignment="Left" Margin="30,355,0,0" TextWrapping="Wrap" Text="https://github.com/brianmanderson/Unzip_Unlink_Csharp" VerticalAlignment="Top" Width="332"/>
-        <ProgressBar x:Name="FilesProgressBar" HorizontalAlignment="Left" Height="15" Margin="30,319,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
-        <ProgressBar x:Name="FolderProgressBar" HorizontalAlignment="Left" Height="15" Margin="30,299,0,0" VerticalAlignment="Top" Width="230" Visibility="Visible"/>
-        <TextBlock x:Name="FilesTextBlock" HorizontalAlignment="Left" Margin="265,319,0,0" TextWrapping="Wrap" Text="Rewriting files" VerticalAlignment="Top" Width="111" Height="20"/>
-        <Label x:Name="ProgressLabel" Content="Overall progress" HorizontalAlignment="Left" VerticalAlignment="Top" Height="25" Width="111" Margin="260,292,0,0"/>
-        <Label x:Name="RecommendLabel" Content="" HorizontalAlignment="Left" VerticalAlignment="Top" Height="33" Width="483" Margin="30,216,0,0"/>
-        <Button x:Name="AboutButton" Content="About!" HorizontalAlignment="Left" Background="LightGreen" Margin="380,300,0,0" VerticalAlignment="Top" Height="71" Width="150" Click="AboutButton_Click"/>
-        <Label Content="Things you want to change" HorizontalAlignment="Left" Margin="20,23,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
-        <Label Content="Modalities you want to change" HorizontalAlignment="Left" Margin="380,23,0,0" VerticalAlignment="Top" Height="26" Width="215"/>
-        <Label Content="Things you should change" HorizontalAlignment="Left" Margin="212,45,0,0" VerticalAlignment="Top" Height="26" Width="168"/>
-        <CheckBox x:Name="SOPInstanceUID_CheckBox" Content="SOP Instance UID" HorizontalAlignment="Left" VerticalAlignment="Top" Checked="ThingCheckBox_Checked" Unchecked="SOPInstanceCheckBox_Checked" Margin="218,76,0,0"/>
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="Unzip &amp; Unlink"
+        Width="1000" Height="720" MinWidth="960" MinHeight="660"
+        WindowStartupLocation="CenterScreen"
+        AllowDrop="True"
+        DragEnter="Window_DragOver" DragOver="Window_DragOver" DragLeave="Window_DragLeave" Drop="Window_Drop">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Themes/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <!-- Solid background on purpose: Windows 10 has no Mica, and screenshots must not depend on it. -->
+    <Grid x:Name="RootGrid" Background="{DynamicResource ApplicationBackgroundBrush}">
+
+        <Grid Margin="24,16,24,20" IsEnabled="{Binding IsNotConfirming}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- ============================== Header ============================== -->
+            <Grid Grid.Row="0" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Unzip &amp; Unlink" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                               Text="Give CT, MR and PET series new DICOM IDs, so re-imported copies are not merged with, or registered to, the originals." />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource LinkButton}" Content="About" Click="About_Click"
+                        VerticalAlignment="Top" Margin="12,4,-8,0" ToolTip="About this tool" />
+            </Grid>
+
+            <!-- ============================== Error banner ============================== -->
+            <Border Grid.Row="1" Margin="0,0,0,12" Padding="14,10" CornerRadius="6" BorderThickness="1"
+                    Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    Visibility="{Binding ErrorMessage, Converter={StaticResource ShowIfText}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xEA39;"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                    <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap" Margin="10,0"
+                               VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="Try again" Command="{Binding RetryCommand}"
+                            Visibility="{Binding CanRetry, Converter={StaticResource Show}}" Margin="0,0,6,0" />
+                    <Button Grid.Column="3" Style="{StaticResource LinkButton}" Command="{Binding DismissErrorCommand}"
+                            ToolTip="Dismiss" Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE711;" FontSize="12" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ============================== Start: nothing chosen yet ============================== -->
+            <Grid Grid.Row="2" Visibility="{Binding IsEmpty, Converter={StaticResource Show}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource Card}" Padding="16,14,16,16">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource StepBadge}">
+                                <TextBlock Style="{StaticResource StepBadgeText}" Text="1" />
+                            </Border>
+                            <TextBlock Style="{StaticResource StepTitle}" Text="Choose your data" />
+                        </StackPanel>
+
+                        <Grid Grid.Row="1" Margin="0,12,0,0">
+                            <Rectangle x:Name="DropOutline" RadiusX="8" RadiusY="8" StrokeThickness="1.5"
+                                       StrokeDashArray="5 4" SnapsToDevicePixels="True">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Stroke" Value="{DynamicResource ControlStrongStrokeColorDefaultBrush}" />
+                                        <Setter Property="Fill" Value="{DynamicResource SubtleFillColorTransparentBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDragOver}" Value="True">
+                                                <Setter Property="Stroke" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                <Setter Property="Fill" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                <Viewbox Width="56" Height="56" HorizontalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M3,7 a2,2 0 0 1 2,-2 h4.2 l2,2 H19 a2,2 0 0 1 2,2 v8 a2,2 0 0 1 -2,2 H5 a2,2 0 0 1 -2,-2 Z"
+                                              Stroke="{DynamicResource AccentTextFillColorPrimaryBrush}" StrokeThickness="1.3"
+                                              StrokeLineJoin="Round" />
+                                        <Path Data="M12,10.2 v5.2 M9.8,13.4 l2.2,2.2 l2.2,-2.2"
+                                              Stroke="{DynamicResource AccentTextFillColorPrimaryBrush}" StrokeThickness="1.3"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="Drop a folder or a .zip of DICOM files here" FontSize="18"
+                                           FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0" />
+                                <TextBlock Style="{StaticResource Muted}" Text="or pick it yourself"
+                                           HorizontalAlignment="Center" Margin="0,4,0,14" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Style="{DynamicResource AccentButtonStyle}" Content="Choose folder…"
+                                            Command="{Binding ChooseFolderCommand}" MinWidth="140" Padding="16,7" />
+                                    <Button Content="Choose .zip…" Command="{Binding ChooseZipCommand}" MinWidth="140"
+                                            Padding="16,7" Margin="10,0,0,0" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Muted}" TextAlignment="Center" Margin="0,18,0,0"
+                                           MaxWidth="520" FontSize="12"
+                                           Text="Everything happens on this computer. A .zip is extracted next to itself and kept. Nothing is changed until you press Unlink in step 4." />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- What comes next -->
+                <UniformGrid Grid.Row="1" Columns="3" Margin="-5,10,-5,0">
+                    <Border Style="{StaticResource Card}" Margin="5,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Opacity="0.6">
+                                <Border Style="{StaticResource StepBadge}">
+                                    <TextBlock Style="{StaticResource StepBadgeText}" Text="2" />
+                                </Border>
+                                <TextBlock Style="{StaticResource StepTitle}" Text="Review" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" FontSize="12"
+                                       Text="See every series that was found, and which of them are linked to each other today." />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Margin="5,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Opacity="0.6">
+                                <Border Style="{StaticResource StepBadge}">
+                                    <TextBlock Style="{StaticResource StepBadgeText}" Text="3" />
+                                </Border>
+                                <TextBlock Style="{StaticResource StepTitle}" Text="Choose changes" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" FontSize="12"
+                                       Text="Pick which IDs to replace and on which images, with a live preview of the links that will be broken." />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Margin="5,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Opacity="0.6">
+                                <Border Style="{StaticResource StepBadge}">
+                                    <TextBlock Style="{StaticResource StepBadgeText}" Text="4" />
+                                </Border>
+                                <TextBlock Style="{StaticResource StepTitle}" Text="Run" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" FontSize="12"
+                                       Text="The files are rewritten in place, and the result is checked and shown when it is done." />
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+            </Grid>
+
+            <!-- ============================== Working view ============================== -->
+            <Grid Grid.Row="2" Visibility="{Binding IsEmpty, Converter={StaticResource Hide}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- ============ 1 · Data (compact) ============ -->
+                <Border Grid.Row="0" Style="{StaticResource Card}" Padding="16,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource StepBadge}">
+                            <TextBlock Style="{StaticResource StepBadgeText}" Text="1" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="10,0,16,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DisplayPath}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding DisplayPath}" />
+                            <TextBlock Style="{StaticResource Muted}" Text="{Binding SourceNote}" FontSize="12"
+                                       Visibility="{Binding SourceNote, Converter={StaticResource ShowIfText}}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,1,0,0"
+                                        Visibility="{Binding NetworkHint, Converter={StaticResource ShowIfText}}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="12"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                <TextBlock Text="{Binding NetworkHint}" FontSize="12" Margin="6,0,0,0"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                    IsEnabled="{Binding CanChooseData}">
+                            <Button Content="Choose folder…" Command="{Binding ChooseFolderCommand}" />
+                            <Button Content="Choose .zip…" Command="{Binding ChooseZipCommand}" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="336" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ============ 2 · Review ============ -->
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,10,0" Padding="16,14,16,12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource StepBadge}">
+                                    <TextBlock Style="{StaticResource StepBadgeText}" Text="2" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Style="{StaticResource StepTitle}" Text="Review" />
+                                <TextBlock Grid.Column="2" Style="{StaticResource Muted}" Text="{Binding SummaryText}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                            </Grid>
+
+                            <TextBlock Grid.Row="1" Style="{StaticResource Muted}" Text="{Binding ReviewHelp}" FontSize="12"
+                                       Margin="0,8,0,0" Visibility="{Binding ShowGrid, Converter={StaticResource Show}}" />
+
+                            <ItemsControl Grid.Row="2" ItemsSource="{Binding Warnings}" Margin="0,6,0,0" Focusable="False"
+                                          Visibility="{Binding IsLoading, Converter={StaticResource Hide}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="13"
+                                                       VerticalAlignment="Top" Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" FontSize="12"
+                                                       Margin="7,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <DataGrid x:Name="SeriesGrid" Grid.Row="3" Margin="0,10,0,0"
+                                      ItemsSource="{Binding Rows}"
+                                      Visibility="{Binding ShowGrid, Converter={StaticResource Show}}"
+                                      AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                      CanUserReorderColumns="False" CanUserResizeRows="False" CanUserSortColumns="False"
+                                      HeadersVisibility="Column" GridLinesVisibility="None" SelectionMode="Extended"
+                                      SelectionUnit="FullRow" RowHeight="34" BorderThickness="0" Background="Transparent"
+                                      RowBackground="Transparent" AlternatingRowBackground="Transparent"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      PreviewKeyDown="SeriesGrid_PreviewKeyDown"
+                                      AutomationProperties.Name="Series found">
+                                <DataGrid.Resources>
+                                    <Style x:Key="CenterHeader" TargetType="DataGridColumnHeader"
+                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                    </Style>
+                                    <Style x:Key="RightHeader" TargetType="DataGridColumnHeader"
+                                           BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                        <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                    </Style>
+                                </DataGrid.Resources>
+                                <DataGrid.RowStyle>
+                                    <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSupported}" Value="False">
+                                                <Setter Property="Opacity" Value="0.55" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.RowStyle>
+                                <DataGrid.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="DataGridCell">
+                                                    <Border Background="{TemplateBinding Background}" Padding="4,0">
+                                                        <ContentPresenter VerticalAlignment="Center" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            </DataTrigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.CellStyle>
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Width="40" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsIncluded, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsEnabled="{Binding CanToggle}" MinWidth="0" Padding="0"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          ToolTip="Include this series in the run"
+                                                          AutomationProperties.Name="Include series" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Type" Width="84" IsReadOnly="True"
+                                                            CellTemplate="{StaticResource ModalityChip}" />
+                                    <DataGridTemplateColumn Header="#" Width="44" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding SeriesNumber}" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Series" Width="*" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Description}" ToolTipService.ShowOnDisabled="True">
+                                                    <Run Text="{Binding Description, Mode=OneWay}" />
+                                                    <Run Text="{Binding NoteSuffix, Mode=OneWay}"
+                                                         FontStyle="Italic"
+                                                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Images" Width="68" IsReadOnly="True"
+                                                            HeaderStyle="{StaticResource RightHeader}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ImageCountText}" VerticalAlignment="Center"
+                                                           HorizontalAlignment="Right" Margin="0,0,10,0" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="72" IsReadOnly="True" HeaderStyle="{StaticResource CenterHeader}">
+                                        <DataGridTemplateColumn.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DataContext.FirstBadgeHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                           ToolTip="Link group: series with the same letter share a frame of reference" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.HeaderTemplate>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentPresenter Content="{Binding FirstBadge}" Margin="0,0,12,0"
+                                                                  ContentTemplate="{StaticResource LinkBadge}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="72" IsReadOnly="True" HeaderStyle="{StaticResource CenterHeader}">
+                                        <DataGridTemplateColumn.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DataContext.SecondBadgeHeader, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                           ToolTip="Link group: series with the same letter share a frame of reference" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.HeaderTemplate>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ContentPresenter Content="{Binding SecondBadge}" Margin="0,0,12,0"
+                                                                  ContentTemplate="{StaticResource LinkBadge}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Loading: extracting / waiting for a transfer / scanning -->
+                            <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center" Width="340"
+                                        Visibility="{Binding IsLoading, Converter={StaticResource Show}}">
+                                <TextBlock Text="{Binding LoadStatus}" FontSize="15" FontWeight="SemiBold"
+                                           TextAlignment="Center" TextWrapping="Wrap" />
+                                <ProgressBar Margin="0,14,0,8" Minimum="0" Maximum="1" Value="{Binding LoadProgress, Mode=OneWay}"
+                                             IsIndeterminate="{Binding IsLoadIndeterminate}" />
+                                <TextBlock Style="{StaticResource Muted}" Text="{Binding LoadDetail}" TextAlignment="Center"
+                                           MinHeight="18" />
+                                <Button Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"
+                                        HorizontalAlignment="Center" MinWidth="96" Margin="0,12,0,0" />
+                            </StackPanel>
+
+                            <!-- Nothing found -->
+                            <StackPanel Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="360"
+                                        Visibility="{Binding ShowNoSeries, Converter={StaticResource Show}}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE9CE;" FontSize="32"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                <TextBlock Text="No DICOM images were found here" FontSize="15" FontWeight="SemiBold"
+                                           TextAlignment="Center" Margin="0,10,0,4" />
+                                <TextBlock Style="{StaticResource Muted}" TextAlignment="Center"
+                                           Text="Check that this is the right folder, or choose another one above." />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ============ 3 · Choose changes ============ -->
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Padding="16,14,6,10"
+                            Visibility="{Binding IsDone, Converter={StaticResource Hide}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource StepBadge}">
+                                    <TextBlock Style="{StaticResource StepBadgeText}" Text="3" />
+                                </Border>
+                                <TextBlock Style="{StaticResource StepTitle}" Text="Choose changes" />
+                            </StackPanel>
+
+                            <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                                <StackPanel IsEnabled="{Binding CanEditOptions}" Margin="0,0,10,0">
+
+                                    <TextBlock Style="{StaticResource GroupTitle}" Text="What to change" />
+                                    <CheckBox IsChecked="{Binding ChangeFrame}" VerticalContentAlignment="Top"
+                                              ToolTip="Series that share a Frame of Reference UID are treated as registered to each other. A new one per series breaks that link, so each series stands on its own.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}" Text="Frame of Reference UID" />
+                                            <TextBlock Style="{StaticResource OptionHelp}"
+                                                       Text="Breaks the registration between series." />
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding ChangeSeries}" VerticalContentAlignment="Top"
+                                              ToolTip="With a new Series Instance UID the receiving system sees a brand-new series instead of adding the images to the one it already has.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}" Text="Series Instance UID" />
+                                            <TextBlock Style="{StaticResource OptionHelp}"
+                                                       Text="Copies are not merged into the original series." />
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding ChangeSop}" VerticalContentAlignment="Top"
+                                              ToolTip="Every image file carries its own SOP Instance UID. Many systems silently skip a file whose ID they have already seen, so new ones are recommended whenever anything else changes.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}">
+                                                <Run Text="SOP Instance UID" />
+                                                <Run Text=" · recommended" FontSize="12"
+                                                     Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                            </TextBlock>
+                                            <TextBlock Style="{StaticResource OptionHelp}"
+                                                       Text="A new ID for every image file." />
+                                            <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                                       Text="Without this, the copies may be rejected as duplicates."
+                                                       Visibility="{Binding ShowSopWarning, Converter={StaticResource Show}}" />
+                                        </StackPanel>
+                                    </CheckBox>
+
+                                    <TextBlock Style="{StaticResource GroupTitle}" Text="Which images" Margin="0,8,0,2" />
+                                    <ItemsControl ItemsSource="{Binding Modalities}" Focusable="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="3" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding IsAvailable}"
+                                                          MinWidth="0" VerticalContentAlignment="Top"
+                                                          AutomationProperties.Name="{Binding ModalityLabel}">
+                                                    <StackPanel>
+                                                        <ContentPresenter Content="{Binding}"
+                                                                          ContentTemplate="{StaticResource ModalityChip}" />
+                                                        <TextBlock Style="{StaticResource OptionHelp}" Text="{Binding CountText}"
+                                                                   Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                </CheckBox>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Style="{StaticResource GroupTitle}" Text="Keep together" Margin="0,8,0,2" />
+                                    <CheckBox IsChecked="{Binding KeepCt}" IsEnabled="{Binding CanKeepCt}"
+                                              VerticalContentAlignment="Top" ToolTipService.ShowOnDisabled="True"
+                                              ToolTip="For 4DCT: CT series that share a frame of reference today get one new frame between them instead of one each. Ticked for you when the scan finds such a group. Needs CT selected and Frame of Reference UID switched on.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}" Text="4DCT phases" />
+                                            <TextBlock Style="{StaticResource OptionHelp}"
+                                                       Text="CT series that share a frame of reference stay registered to each other." />
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding KeepPetCt}" IsEnabled="{Binding CanKeepPetCt}"
+                                              VerticalContentAlignment="Top" ToolTipService.ShowOnDisabled="True"
+                                              ToolTip="For PET/CT: where a PET and a CT share a frame of reference today, they get one new frame between them. CT-only groups are not affected (that is the 4DCT option). Ticked for you when the scan finds such a pair. Needs both CT and PET selected and Frame of Reference UID switched on.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}" Text="PET with its CT" />
+                                            <TextBlock Style="{StaticResource OptionHelp}"
+                                                       Text="A PET and the CT it shares a frame of reference with stay registered to each other." />
+                                        </StackPanel>
+                                    </CheckBox>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+
+                    <!-- ============ Result (replaces step 3 when the run has finished) ============ -->
+                    <Border Grid.Column="1" Style="{StaticResource Card}" Padding="16,14,16,14"
+                            Visibility="{Binding IsDone, Converter={StaticResource Show}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xEC61;" FontSize="34"
+                                               HorizontalAlignment="Left"
+                                               Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                               Visibility="{Binding ResultIsSuccess, Converter={StaticResource Show}}" />
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="34"
+                                               HorizontalAlignment="Left"
+                                               Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                               Visibility="{Binding ResultIsSuccess, Converter={StaticResource Hide}}" />
+                                </Grid>
+                                <TextBlock Text="{Binding ResultTitle}" FontSize="18" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" Margin="0,10,0,0" />
+                                <TextBlock Text="{Binding ResultDetail}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                <ItemsControl ItemsSource="{Binding ResultChanges}" Margin="0,10,0,0" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12"
+                                                           Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                                <TextBlock Text="{Binding}" Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Style="{StaticResource Muted}" Text="{Binding ResultNote}" FontSize="12"
+                                           Margin="0,10,0,0" />
+                            </StackPanel>
+
+                            <Grid Grid.Row="1" Margin="0,14,0,0"
+                                  Visibility="{Binding HasFailures, Converter={StaticResource Show}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="{Binding FailuresTitle}" FontWeight="SemiBold" />
+                                <ScrollViewer Grid.Row="1" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding Failures}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,8,8" ToolTip="{Binding Path}">
+                                                    <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Style="{StaticResource OptionHelp}" Text="{Binding Error}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+
+                            <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                                <Button Style="{DynamicResource AccentButtonStyle}" Content="Open folder"
+                                        Command="{Binding OpenFolderCommand}" HorizontalAlignment="Stretch" Padding="12,7" />
+                                <Button Content="Process another" Command="{Binding ProcessAnotherCommand}"
+                                        HorizontalAlignment="Stretch" Padding="12,7" Margin="0,8,0,0" />
+                                <Button Style="{StaticResource LinkButton}" Content="Change more in this folder"
+                                        Command="{Binding ContinueCommand}" HorizontalAlignment="Center" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ============ 4 · Run ============ -->
+                <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,10,0,0" Padding="16,12"
+                        Visibility="{Binding IsDone, Converter={StaticResource Hide}}">
+                    <Grid MinHeight="36">
+                        <!-- Before the run -->
+                        <Grid Visibility="{Binding ShowRunPrompt, Converter={StaticResource Show}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource StepBadge}">
+                                <TextBlock Style="{StaticResource StepBadgeText}" Text="4" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource StepTitle}" Text="Run" />
+                            <TextBlock Grid.Column="2" Style="{StaticResource Muted}" Text="{Binding RunHint}"
+                                       VerticalAlignment="Center" Margin="16,0" />
+                            <Button Grid.Column="3" Style="{DynamicResource AccentButtonStyle}"
+                                    Content="{Binding RunButtonText}" Command="{Binding RunCommand}"
+                                    IsEnabled="{Binding CanRun}" MinWidth="200" Padding="18,8"
+                                    ToolTipService.ShowOnDisabled="True" ToolTip="{Binding RunHint}" />
+                        </Grid>
+                        <!-- During the run -->
+                        <Grid Visibility="{Binding IsRunning, Converter={StaticResource Show}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource StepBadge}">
+                                <TextBlock Style="{StaticResource StepBadgeText}" Text="4" />
+                            </Border>
+                            <TextBlock Grid.Column="1" Style="{StaticResource StepTitle}" Text="Unlinking…" />
+                            <Grid Grid.Column="2" Margin="20,0" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding RunStatus}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding RunDetail}"
+                                           TextWrapping="NoWrap" Margin="12,0,0,0" />
+                                <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Margin="0,6,0,0" Minimum="0" Maximum="1"
+                                             Value="{Binding RunProgress, Mode=OneWay}" />
+                            </Grid>
+                            <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}"
+                                    IsEnabled="{Binding CanCancel}" MinWidth="96" Padding="18,8" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ============================== Confirmation (files are changed in place) ============================== -->
+        <Grid x:Name="ConfirmOverlay" Background="{DynamicResource SmokeFillColorDefaultBrush}"
+              Visibility="{Binding IsConfirming, Converter={StaticResource Show}}"
+              IsVisibleChanged="ConfirmOverlay_IsVisibleChanged">
+            <Grid Width="480" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border CornerRadius="8" Background="Black" Opacity="0.35" Margin="2,6,2,-6">
+                    <Border.Effect>
+                        <BlurEffect Radius="24" />
+                    </Border.Effect>
+                </Border>
+                <Border CornerRadius="8" BorderThickness="1" Padding="24,20,24,20"
+                        Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                        BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding ConfirmTitle}" FontSize="20" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ConfirmDetail}" TextWrapping="Wrap" Margin="0,12,0,6" />
+                        <Border CornerRadius="4" Padding="10,7" Background="{DynamicResource SubtleFillColorSecondaryBrush}">
+                            <TextBlock Text="{Binding DisplayFolder}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12.5" />
+                        </Border>
+                        <TextBlock Style="{StaticResource Muted}" Text="{Binding ConfirmChanges}" Margin="0,10,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="14" VerticalAlignment="Top"
+                                       Margin="0,2,0,0" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                            <TextBlock Text="This cannot be undone. Make sure you are working on a copy." Margin="8,0,0,0"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Grid Margin="0,20,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="ConfirmButton" Style="{DynamicResource AccentButtonStyle}" Content="Unlink"
+                                    Command="{Binding ConfirmRunCommand}" IsDefault="True" HorizontalAlignment="Stretch"
+                                    Padding="12,8" />
+                            <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelConfirmCommand}"
+                                    IsCancel="True" HorizontalAlignment="Stretch" Padding="12,8" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>

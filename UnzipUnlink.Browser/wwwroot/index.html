@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <!-- Everything is served from this site; nothing is fetched from or sent to anywhere else.
+       'wasm-unsafe-eval' lets the browser compile the WebAssembly engine; no JavaScript eval is allowed. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; font-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <!-- Every URL below is relative to this base. The deploy step may rewrite it (e.g. to /Unzip_Unlink_Csharp/). -->
+  <base href="./">
+  <title>Unzip &amp; Unlink</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <rect width="40" height="40" rx="10" class="logo-bg"/>
+        <path d="M17 23l-3.2 3.2a4.2 4.2 0 0 1-6-6L11 17" class="logo-link"/>
+        <path d="M23 17l3.2-3.2a4.2 4.2 0 0 1 6 6L29 23" class="logo-link"/>
+        <path d="M15 11.5V8M11.5 15H8M25 28.5V32M28.5 25H32" class="logo-spark"/>
+      </svg>
+      <div>
+        <h1>Unzip &amp; Unlink</h1>
+        <p>Give DICOM series fresh identifiers so a copy stands on its own &middot; <span class="edition">runs entirely in your browser</span></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn ghost icon-only" id="themeButton" type="button" aria-label="Switch between light and dark" title="Switch between light and dark">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+      </button>
+      <button class="btn ghost" id="aboutButton" type="button">About</button>
+    </div>
+  </header>
+
+  <nav aria-label="Progress">
+    <ol class="steps" id="steps">
+      <li data-step="add"><span class="dot">1</span><span>Add data</span></li>
+      <li data-step="review"><span class="dot">2</span><span>Review &amp; choose</span></li>
+      <li data-step="run"><span class="dot">3</span><span>Unlink</span></li>
+      <li data-step="done"><span class="dot">4</span><span>Finish</span></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <!-- 1 · Add data ------------------------------------------------------------------------------>
+    <section id="view-add" class="view" hidden>
+      <div class="add-grid">
+        <div class="card">
+          <h2>Unlink a copy</h2>
+          <p class="muted">Drop a study folder or a .zip. The originals on your computer are never changed &mdash; you save the unlinked copy as a .zip at the end.</p>
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Drop a folder or zip here, or press Enter to choose a folder">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <strong>Drop a folder or .zip here</strong>
+            <span class="muted">or</span>
+            <div class="row center">
+              <button class="btn primary" id="chooseFolder" type="button">Choose folder&hellip;</button>
+              <button class="btn" id="chooseFiles" type="button">Choose .zip or files&hellip;</button>
+            </div>
+          </div>
+          <input type="file" id="folderInput" webkitdirectory multiple hidden>
+          <input type="file" id="filesInput" multiple hidden>
+          <p class="fineprint" id="uploadPrivacy">Nothing is uploaded. Your files are read and rewritten by this page, inside your browser, and never leave this computer.</p>
+        </div>
+
+        <div class="card" id="folderCard" hidden>
+          <h2>Open a folder</h2>
+          <p class="muted">Best for big studies: the browser works on the folder directly, file by file, with no .zip in between and no size limit. Nothing is uploaded.</p>
+          <div class="row top-gap">
+            <button class="btn primary" id="openFolder" type="button">Open a folder&hellip;</button>
+          </div>
+          <p class="fineprint">You choose on the next step whether to change the files in place or write a separate copy. Your browser will ask for permission before anything is written.</p>
+        </div>
+      </div>
+
+      <div class="explain">
+        <div><span class="chip ct">CT</span><span class="chip mr">MR</span><span class="chip pt">PET</span></div>
+        <p><strong>What does unlinking do?</strong> Treatment-planning and PACS systems decide which images belong together from three identifiers inside each DICOM file. This tool writes new values for the ones you pick, so a re-imported copy is treated as an independent data set instead of being merged with, or registered to, the original.</p>
+      </div>
+    </section>
+
+    <!-- Busy: uploading / extracting / scanning ----------------------------------------------------->
+    <section id="view-busy" class="view" hidden>
+      <div class="card narrow center-text">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 id="busyTitle">Working&hellip;</h2>
+        <p class="muted" id="busyDetail"></p>
+        <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="busyMeter"><div class="meter-fill" id="busyFill"></div></div>
+        <p class="fineprint" id="busyCount"></p>
+        <button class="btn" id="busyCancel" type="button">Cancel</button>
+      </div>
+    </section>
+
+    <!-- 2 · Review & choose ------------------------------------------------------------------------>
+    <section id="view-review" class="view" hidden>
+      <div class="review-head">
+        <div>
+          <h2 id="reviewTitle">Review</h2>
+          <p class="muted" id="reviewSummary"></p>
+        </div>
+        <button class="btn ghost" id="startOver" type="button">Choose different data</button>
+      </div>
+      <div id="notices"></div>
+
+      <div class="review-grid">
+        <aside class="options">
+          <div class="card">
+            <h3>What to change</h3>
+            <label class="switch-row">
+              <input type="checkbox" id="optFrame">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>Frame of Reference UID</strong><small>Breaks the registration between series. This is the &ldquo;unlink&rdquo;.</small></span>
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="optSeries">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>Series Instance UID</strong><small>Makes each series import as a brand-new series instead of merging into the original.</small></span>
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="optSop">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>SOP Instance UID</strong> <em class="tag">recommended</em><small>Gives every image a new identity so systems don&rsquo;t reject them as duplicates.</small></span>
+            </label>
+          </div>
+
+          <div class="card">
+            <h3>Which images</h3>
+            <div class="modality-toggles" id="modalityToggles"></div>
+            <p class="fineprint">Only CT, MR and PET are modified. Structure sets, plans, dose and registrations are left exactly as they are.</p>
+          </div>
+
+          <div class="card" id="keepCard">
+            <h3>Keep together</h3>
+            <label class="switch-row">
+              <input type="checkbox" id="optKeepCt">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>4DCT phases</strong><small id="keepCtHint">CT series that share a frame of reference today stay registered to each other.</small></span>
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="optKeepPet">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>PET with its CT</strong><small id="keepPetHint">A PET and the CT it shares a frame of reference with stay registered to each other.</small></span>
+            </label>
+          </div>
+
+          <div class="card" id="outputCard" hidden>
+            <h3>Where to write</h3>
+            <label class="radio-row">
+              <input type="radio" name="output" id="outInPlace" value="inplace" checked>
+              <span><strong>Change the files in place</strong><small>Same behaviour as the desktop app. There is no undo.</small></span>
+            </label>
+            <label class="radio-row">
+              <input type="radio" name="output" id="outCopy" value="copy">
+              <span><strong>Write a separate copy</strong><small id="outCopyHint">The originals stay untouched. You choose where the new folder goes.</small></span>
+            </label>
+          </div>
+        </aside>
+
+        <div class="card table-card">
+          <div class="table-scroll">
+            <table class="series" id="seriesTable">
+              <thead>
+                <tr>
+                  <th class="col-check"><input type="checkbox" id="checkAll" aria-label="Include all series"></th>
+                  <th>Type</th>
+                  <th class="num">#</th>
+                  <th>Series</th>
+                  <th class="num">Images</th>
+                  <th class="num">Size</th>
+                  <th title="Series that share a frame of reference are registered to each other">Linked now</th>
+                  <th>After</th>
+                </tr>
+              </thead>
+              <tbody id="seriesBody"></tbody>
+            </table>
+          </div>
+          <div class="legend">
+            <span><span class="link-badge g0">A</span> shares a frame of reference with other series</span>
+            <span><span class="link-badge solo">&ndash;</span> stands alone</span>
+            <span><span class="pill new">new IDs</span> will be rewritten</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div id="runSummary" class="muted"></div>
+        <button class="btn primary large" id="runButton" type="button">Unlink</button>
+      </div>
+    </section>
+
+    <!-- 4 · Finish ----------------------------------------------------------------------------------->
+    <section id="view-done" class="view" hidden>
+      <div class="card narrow center-text">
+        <div class="result-icon" id="doneIcon" aria-hidden="true"></div>
+        <h2 id="doneTitle"></h2>
+        <p class="muted" id="doneDetail"></p>
+        <div class="stats" id="doneStats"></div>
+        <div id="doneLocation"></div>
+        <div class="row center wrap top-gap" id="doneActions"></div>
+        <div id="doneFailures"></div>
+        <p class="fineprint" id="doneNote"></p>
+      </div>
+    </section>
+
+    <!-- Error ---------------------------------------------------------------------------------------->
+    <section id="view-error" class="view" hidden>
+      <div class="card narrow center-text">
+        <div class="result-icon bad" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+        <h2>That didn&rsquo;t work</h2>
+        <p id="errorText"></p>
+        <div class="row center top-gap">
+          <button class="btn primary" id="errorBack" type="button">Start again</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="footerInfo">Unzip &amp; Unlink &middot; browser edition</span>
+    <a href="https://github.com/brianmanderson/Unzip_Unlink_Csharp/issues" target="_blank" rel="noopener noreferrer">Report an issue</a>
+  </footer>
+
+  <!-- Dialogs --------------------------------------------------------------------------------------->
+  <dialog id="aboutDialog" class="dialog">
+    <h2>About Unzip &amp; Unlink</h2>
+    <p>We hope this program helps you in some way. If you find it useful I would love to hear so! Please feel free to reach out with any thoughts for future improvements or issues.</p>
+    <p><a href="mailto:markba122@gmail.com">markba122@gmail.com</a></p>
+    <p>The method behind this tool was published in the <em>Journal of Applied Clinical Medical Physics</em>; the accepted manuscript is in the repository under <a href="https://github.com/brianmanderson/Unzip_Unlink_Csharp/tree/main/Paper/JACMP" target="_blank" rel="noopener noreferrer">Paper/JACMP</a>.</p>
+    <p>Check out other tools at <a href="https://github.com/brianmanderson" target="_blank" rel="noopener noreferrer">github.com/brianmanderson</a>.</p>
+    <p>This browser edition runs the same C# engine as the desktop and server apps, compiled to WebAssembly. Your files are processed on this computer and are never uploaded.</p>
+    <p class="fineprint" id="aboutVersion"></p>
+    <div class="row end"><button class="btn primary" data-close type="button">Close</button></div>
+  </dialog>
+
+  <dialog id="confirmDialog" class="dialog">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmText"></p>
+    <p class="path" id="confirmPath"></p>
+    <div class="row end">
+      <button class="btn" data-close type="button">Cancel</button>
+      <button class="btn primary" id="confirmOk" type="button">Unlink</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
