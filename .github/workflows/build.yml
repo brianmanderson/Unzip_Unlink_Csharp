@@ -3,46 +3,56 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'   # Triggers on version tag pushes, e.g., v1.0.0
-  workflow_dispatch:  # Allows manual triggering of the workflow
+      - 'v*'   # e.g. v2.0.0
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      # No need to install .NET since Windows runners include .NET Framework 4.8 by default.
-      - name: Restore dependencies
-        run: dotnet restore
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
 
-      - name: Build solution
-        run: dotnet build --configuration Release
+      - name: Test
+        run: dotnet test Unzip_Unlink_CSharp.sln --configuration Release
 
-      - name: Publish project
-        run: dotnet publish --configuration Release -o publish
+      # Self-contained: nothing to install on the target PC.
+      - name: Publish desktop app
+        run: >
+          dotnet publish UnzipUnlinkGUI/UnzipUnlinkGUI.csproj --configuration Release --runtime win-x64
+          --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          --output publish/UnzipUnlink-Desktop
 
-      - name: Upload artifact
+      - name: Publish web app
+        run: >
+          dotnet publish UnzipUnlink.Web/UnzipUnlink.Web.csproj --configuration Release --runtime win-x64
+          --self-contained true -p:PublishSingleFile=true
+          --output publish/UnzipUnlink-Web
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/UnzipUnlink-Desktop/* -DestinationPath UnzipUnlink-Desktop-win-x64.zip
+          Compress-Archive -Path publish/UnzipUnlink-Web/* -DestinationPath UnzipUnlink-Web-win-x64.zip
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: my-csharp-app
-          path: publish
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: my-csharp-app
+          name: unzip-unlink
+          path: |
+            UnzipUnlink-Desktop-win-x64.zip
+            UnzipUnlink-Web-win-x64.zip
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          files: my-csharp-app/**/*   # The artifact is downloaded into a folder named "my-csharp-app"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            UnzipUnlink-Desktop-win-x64.zip
+            UnzipUnlink-Web-win-x64.zip

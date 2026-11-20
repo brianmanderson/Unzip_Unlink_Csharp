@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "unzip-unlink-web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "UnzipUnlink.Web", "--no-launch-profile", "--", "--urls", "http://localhost:5185", "--UnzipUnlink:OpenBrowser=false", "--UnzipUnlink:AutoPort=false"],
+      "port": 5185
+    },
+    {
+      "name": "unzip-unlink-browser",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["UnzipUnlink.BrowserCheck/server.mjs", "publish/pages/wwwroot", "5190"],
+      "port": 5190
+    }
+  ]
+}

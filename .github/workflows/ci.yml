@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  build-and-test:
+    # Windows because the desktop app is WPF. Core, Web and the tests are cross-platform.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Unzip_Unlink_CSharp.sln
+
+      - name: Build
+        run: dotnet build Unzip_Unlink_CSharp.sln --configuration Release --no-restore
+
+      # The tests build their own synthetic DICOM files, so no patient data is needed (or allowed) here.
+      - name: Test
+        run: dotnet test Unzip_Unlink_CSharp.sln --configuration Release --no-build
