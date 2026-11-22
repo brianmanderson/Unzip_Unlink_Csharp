@@ -12,6 +12,11 @@ public sealed class WebOptions
     public int RetentionMinutes { get; set; } = 60;
     public long MaxUploadMegabytes { get; set; } = 20480;
     public bool OpenBrowser { get; set; } = true;
+    /// <summary>
+    /// NetworkOnly | Always | Never. Whether a folder on the server is copied to the server's local disk, worked
+    /// on there and copied back. Network shares are slow for thousands of small reads and writes.
+    /// </summary>
+    public string WorkLocally { get; set; } = "NetworkOnly";
 
     public long MaxUploadBytes => MaxUploadMegabytes * 1024 * 1024;
 }
@@ -91,6 +96,8 @@ public sealed class Job
         lock (_gate) { _notes.Clear(); }
     }
 
+    /// <summary>Local jobs on a network folder: the temporary local copy that is scanned and rewritten instead.</summary>
+    public LocalWorkingCopy? WorkingCopy { get; set; }
     public ScanResult? Scan { get; set; }
     public UnlinkPlan? ExecutedPlan { get; set; }
     public UnlinkResult? Result { get; set; }
@@ -260,6 +267,7 @@ public sealed class JobManager : BackgroundService
     {
         job.Cancellation?.Cancel();
         _jobs.TryRemove(job.Id, out _);
+        DiscardWorkingCopy(job);
         if (job.WorkspaceDir is not null)
         {
             // A running operation may still hold files open; retry in the background.
@@ -284,6 +292,7 @@ public sealed class JobManager : BackgroundService
         job.Result = null;
         job.ExecutedPlan = null;
         job.ClearNotes();
+        DiscardWorkingCopy(job);
         CancellationToken token = NewCancellation(job);
         _ = Task.Run(() => Guarded(job, () => Prepare(job, token)), CancellationToken.None);
         return true;
@@ -321,9 +330,40 @@ public sealed class JobManager : BackgroundService
             PrepareLocal(job, token);
         }
 
+        string scanRoot = job.ContentRoot;
+        if (!job.IsUpload && WorksLocally(job.ContentRoot))
+        {
+            // Pull the study down once and do everything on the local disk; only what changed goes back.
+            job.SetPhase("Copying to this computer to work faster");
+            job.WorkingCopy = LocalWorkingCopy.Create(
+                job.ContentRoot, ProgressTo(job, (CopyProgress p) => (p.FilesDone, p.FilesTotal)), token, Path.Combine(WorkspaceRoot, "network"));
+            if (job.WorkingCopy is { } workingCopy)
+            {
+                scanRoot = workingCopy.LocalRoot;
+                job.AddNote("Working on a temporary copy on this computer, because the folder is on a network drive. The result is copied back when the run finishes.");
+            }
+            else
+            {
+                job.AddNote("There is not enough free space on this computer for a temporary copy, so the files are used where they are, which is slower.");
+            }
+        }
+
         job.SetPhase("Reading DICOM headers");
-        job.Scan = DicomScanner.Scan(job.ContentRoot, ProgressTo(job, (ScanProgress p) => (p.FilesDone, p.FilesTotal)), token);
+        job.Scan = DicomScanner.Scan(scanRoot, ProgressTo(job, (ScanProgress p) => (p.FilesDone, p.FilesTotal)), token);
         job.Finish(JobState.Ready);
+    }
+
+    private bool WorksLocally(string folder) => _options.WorkLocally.ToLowerInvariant() switch
+    {
+        "always" => true,
+        "never" => false,
+        _ => StorageInfo.IsNetworkPath(folder),
+    };
+
+    private static void DiscardWorkingCopy(Job job)
+    {
+        job.WorkingCopy?.Dispose();
+        job.WorkingCopy = null;
     }
 
     private static void PrepareLocal(Job job, CancellationToken token)
@@ -383,6 +423,12 @@ public sealed class JobManager : BackgroundService
         UnlinkOptions options = request.ToOptions();
         ScanResult scan = job.Scan!;
 
+        if (job.WorkingCopy is { } workingCopy)
+        {
+            RunOnWorkingCopy(job, workingCopy, request, options, token);
+            return;
+        }
+
         if (!job.IsUpload && request.WorkOnCopy)
         {
             string copy = UniqueSibling(job.ContentRoot, "_unlinked");
@@ -419,6 +465,65 @@ public sealed class JobManager : BackgroundService
         job.ExecutedPlan = plan;
         job.Result = result;
         _log.LogInformation("Job {Job}: {Series} series / {Files} files rewritten, {Failures} failures, cancelled={Cancelled}",
+            job.Id, result.SeriesChanged, result.FilesChanged, result.Failures.Count, result.Cancelled);
+        job.Finish(JobState.Done);
+    }
+
+    /// <summary>
+    /// A folder on a network drive: the rewrite happens on the local working copy, then the result is sent to
+    /// the network. In place, only the files that changed go back, a unit at a time; for "write a separate
+    /// copy" the whole rewritten study is written to a new folder beside the original.
+    /// </summary>
+    private void RunOnWorkingCopy(Job job, LocalWorkingCopy workingCopy, ChangeRequest request, UnlinkOptions options, CancellationToken token)
+    {
+        UnlinkPlan plan = UnlinkPlanner.Create(job.Scan!, options);
+        if (plan.Series.Count == 0)
+        {
+            throw new UserFacingException("Nothing is selected to change.");
+        }
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        job.SetPhase("Writing new identifiers");
+        UnlinkResult run = UnlinkRunner.Run(plan, new InlineProgress<UnlinkProgress>(p => job.SetProgress(p.FilesDone, p.FilesTotal)), token);
+        InlineProgress<CopyProgress> copyProgress = ProgressTo(job, (CopyProgress p) => (p.FilesDone, p.FilesTotal));
+
+        UnlinkResult result;
+        if (!request.WorkOnCopy)
+        {
+            job.SetPhase("Copying the changed files back to the network folder");
+            UploadResult upload = workingCopy.Upload(LocalWorkingCopy.RewrittenFiles(plan, run), progress: copyProgress, cancellationToken: token);
+            result = workingCopy.Combine(plan, run, upload, clock.Elapsed);
+            job.OutputFolder = job.ContentRoot;
+        }
+        else
+        {
+            // A separate copy is only worth having whole: a cancelled run writes nothing to the network.
+            UploadResult upload = new() { Cancelled = true };
+            string copy = UniqueSibling(job.ContentRoot, "_unlinked");
+            if (!run.Cancelled)
+            {
+                job.SetPhase($"Copying to {Path.GetFileName(copy)}");
+                upload = workingCopy.Upload(workingCopy.AllFiles(), copy, copyProgress, token);
+                if (upload.Cancelled)
+                {
+                    TryDeleteDirectory(copy);
+                }
+            }
+            result = new UnlinkResult
+            {
+                SeriesChanged = upload.Cancelled ? 0 : run.SeriesChanged,
+                FilesChanged = upload.Cancelled ? 0 : run.FilesChanged,
+                Failures = [.. run.Failures, .. upload.Failures.Select(f => new FileFailure(f.Path, "Could not be copied to the new folder: " + f.Error))],
+                Cancelled = upload.Cancelled,
+                Duration = clock.Elapsed,
+            };
+            job.OutputFolder = upload.Cancelled ? null : copy;
+        }
+
+        job.ExecutedPlan = plan;
+        job.Result = result;
+        // The local copy has served its purpose and holds patient data: do not keep it for the life of the job.
+        DiscardWorkingCopy(job);
+        _log.LogInformation("Job {Job}: {Series} series / {Files} files rewritten via a local working copy, {Failures} failures, cancelled={Cancelled}",
             job.Id, result.SeriesChanged, result.FilesChanged, result.Failures.Count, result.Cancelled);
         job.Finish(JobState.Done);
     }
@@ -534,6 +639,7 @@ public sealed class JobManager : BackgroundService
         foreach (Job job in _jobs.Values)
         {
             job.Cancellation?.Cancel();
+            DiscardWorkingCopy(job);
         }
         // Uploaded patient data never outlives the process.
         _workspaceLock.Dispose();

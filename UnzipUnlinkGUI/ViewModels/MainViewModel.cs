@@ -37,6 +37,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _showingResult;
     private bool _rescanning;
     private string? _lastPath;
+    private LocalWorkingCopy? _workingCopy;
 
     private string _sourcePath = "";
     private string _folderPath = "";
@@ -173,6 +174,15 @@ public sealed class MainViewModel : ObservableObject
         get => _folderPath;
         private set { if (Set(ref _folderPath, value)) { OnPropertyChanged(nameof(DisplayFolder)); } }
     }
+
+    /// <summary>
+    /// Whether a folder is copied to this computer, worked on there and copied back: null (the default) does so
+    /// for network folders only; true and false force it on or off (used by the command-line mode and tests).
+    /// </summary>
+    public bool? WorkLocally { get; set; }
+
+    /// <summary>True while the series on screen come from a temporary local copy of a network folder.</summary>
+    public bool IsWorkingLocally => _workingCopy is not null;
 
     /// <summary>Screenshots only: text shown instead of the real paths.</summary>
     public string? DisplayPathOverride { get; set; }
@@ -582,6 +592,39 @@ public sealed class MainViewModel : ObservableObject
                 }
             }
 
+            // A network folder is pulled down once and everything is then done on this computer: thousands of small
+            // reads and writes over a network are far slower than one copy each way.
+            string scanFolder = folder;
+            if (WorkLocally ?? StorageInfo.IsNetworkPath(folder))
+            {
+                LoadStatus = "Copying to this computer to work faster…";
+                LoadDetail = "";
+                LoadProgress = 0;
+                IsLoadIndeterminate = true;
+                var copyProgress = new Progress<CopyProgress>(p =>
+                {
+                    if (operation != _operation || !IsLoading)
+                    {
+                        return;
+                    }
+                    IsLoadIndeterminate = false;
+                    LoadProgress = Fraction(p.FilesDone, p.FilesTotal);
+                    LoadDetail = $"{p.FilesDone:N0} of {p.FilesTotal:N0} files copied";
+                });
+                _workingCopy = await Task.Run(() => LocalWorkingCopy.Create(folder, copyProgress, token), token);
+                token.ThrowIfCancellationRequested();
+                if (_workingCopy is null)
+                {
+                    SourceNote = Sentences(SourceNote, "There is not enough free space on this computer for a temporary copy, so the files are used where they are, which is slower.");
+                }
+                else
+                {
+                    scanFolder = _workingCopy.LocalRoot;
+                    NetworkHint = "";
+                    SourceNote = Sentences(SourceNote, "Working on a temporary copy on this computer. The changed files are copied back to this folder when the run finishes, and the temporary copy is deleted when you close it.");
+                }
+            }
+
             LoadStatus = "Looking for DICOM series…";
             LoadDetail = "";
             LoadProgress = 0;
@@ -596,7 +639,7 @@ public sealed class MainViewModel : ObservableObject
                 LoadProgress = Fraction(p.FilesDone, p.FilesTotal);
                 LoadDetail = $"{p.FilesDone:N0} of {p.FilesTotal:N0} files read";
             });
-            ScanResult scan = await Task.Run(() => DicomScanner.Scan(folder, scanProgress, token), token);
+            ScanResult scan = await Task.Run(() => DicomScanner.Scan(scanFolder, scanProgress, token), token);
             token.ThrowIfCancellationRequested();
 
             ApplyScan(scan);
@@ -1061,7 +1104,44 @@ public sealed class MainViewModel : ObservableObject
                 }
                 RunDetail = $"{p.FilesDone:N0} of {Count(p.FilesTotal, "file")} · series {Math.Min(p.SeriesDone + 1, p.SeriesTotal)} of {p.SeriesTotal}";
             });
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             UnlinkResult result = await Task.Run(() => UnlinkRunner.Run(plan, progress, token));
+
+            string rescanFolder = folder;
+            if (_workingCopy is { } workingCopy)
+            {
+                // The run above changed the local copy. Now send what changed back to the network folder.
+                _rescanning = true;   // late progress reports from the rewrite must not overwrite the copy-back progress
+                IReadOnlyList<IReadOnlyList<string>> changed = LocalWorkingCopy.RewrittenFiles(plan, result);
+                int toCopy = changed.Sum(g => g.Count);
+                if (!_isCancelling)
+                {
+                    RunStatus = "Copying the changed files back to the network folder…";
+                }
+                RunDetail = $"0 of {Count(toCopy, "file")}";
+                RunProgress = 0;
+                var uploadProgress = new Progress<CopyProgress>(p =>
+                {
+                    if (operation != _operation || !IsRunning)
+                    {
+                        return;
+                    }
+                    RunProgress = Fraction(p.FilesDone, p.FilesTotal);
+                    RunDetail = $"{p.FilesDone:N0} of {Count(p.FilesTotal, "file")} copied back";
+                });
+                UploadResult upload = await Task.Run(() => workingCopy.Upload(changed, progress: uploadProgress, cancellationToken: token));
+                result = workingCopy.Combine(plan, result, upload, clock.Elapsed);
+                if (upload.Complete)
+                {
+                    rescanFolder = workingCopy.LocalRoot;
+                }
+                else
+                {
+                    // The local copy no longer matches the network folder: stop using it and show what is really there.
+                    workingCopy.Dispose();
+                    _workingCopy = null;
+                }
+            }
 
             _rescanning = true;
             RunStatus = "Checking the result…";
@@ -1070,7 +1150,7 @@ public sealed class MainViewModel : ObservableObject
             string? rescanError = null;
             try
             {
-                rescan = await Task.Run(() => DicomScanner.Scan(folder));
+                rescan = await Task.Run(() => DicomScanner.Scan(rescanFolder));
             }
             catch (Exception ex)
             {
@@ -1195,6 +1275,8 @@ public sealed class MainViewModel : ObservableObject
     private void ClearData()
     {
         _scan = null;
+        _workingCopy?.Dispose();
+        _workingCopy = null;
         _showingResult = false;
         _linkedStructureSets = 0;
         _tagProblem = false;
@@ -1259,6 +1341,8 @@ public sealed class MainViewModel : ObservableObject
     }
 
     internal static bool IsNetworkPath(string path) => StorageInfo.IsNetworkPath(path);
+
+    private static string Sentences(string first, string second) => first.Length == 0 ? second : first + " " + second;
 
     private static double Fraction(int done, int total) => total <= 0 ? 0 : Math.Clamp((double)done / total, 0, 1);
 

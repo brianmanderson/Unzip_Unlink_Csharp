@@ -15,7 +15,7 @@ public sealed class WebApiTests : IDisposable
     private readonly string _workspace = Path.Combine(Path.GetTempPath(), "UnzipUnlinkTests", "web-" + Guid.NewGuid().ToString("N"));
     private readonly List<IDisposable> _disposables = [];
 
-    private HttpClient CreateClient(string localFolders = "LoopbackOnly", bool withHeader = true)
+    private HttpClient CreateClient(string localFolders = "LoopbackOnly", bool withHeader = true, string workLocally = "NetworkOnly")
     {
         var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -23,6 +23,7 @@ public sealed class WebApiTests : IDisposable
             builder.UseSetting("UnzipUnlink:OpenBrowser", "false");
             builder.UseSetting("UnzipUnlink:AutoPort", "false");   // the in-memory host never binds a port
             builder.UseSetting("UnzipUnlink:LocalFolders", localFolders);
+            builder.UseSetting("UnzipUnlink:WorkLocally", workLocally);
         });
         _disposables.Add(factory);
         HttpClient client = factory.CreateClient();
@@ -359,6 +360,61 @@ public sealed class WebApiTests : IDisposable
         Assert.Equal(3, report.Length);
         Assert.Contains(report, line => line.StartsWith("RTSTRUCT,") && line.Contains(ctUid) && line.EndsWith("PatientID=ANON001; StudyDate=20300101"));
         Assert.DoesNotContain("SYN-001", string.Join('\n', report));   // old patient identifiers never reach the report
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_folder_worked_on_through_a_local_copy_ends_up_unlinked_where_it_was(bool separateCopy)
+    {
+        // "Always" stands in for a network folder: the server copies it to its own disk, rewrites it there and
+        // sends the result back - in place, or to a new folder beside the original.
+        using var study = new SyntheticStudy();
+        string source = Path.Combine(study.Root, "Export");
+        string ctUid = study.AddSeries("CT", SyntheticStudy.NewUid(), slices: 3, subfolder: "Export/ct");
+        string rsUid = study.AddStructureSet(ctUid, subfolder: "Export/rs");
+        string srUid = study.AddSeries("SR", null, slices: 1, subfolder: "Export/sr");
+        byte[] srBytes = File.ReadAllBytes(Directory.GetFiles(Path.Combine(source, "sr")).Single());
+        HttpClient client = CreateClient("Always", workLocally: "Always");
+
+        JsonElement created = await (await client.PostAsJsonAsync("/api/jobs/local", new { path = source })).Content.ReadFromJsonAsync<JsonElement>();
+        string id = created.GetProperty("id").GetString()!;
+        JsonElement ready = await WaitFor(client, id, "ready");
+        Assert.Contains(ready.GetProperty("notes").EnumerateArray(), n => n.GetString()!.Contains("temporary copy"));
+        Assert.Equal(source, ready.GetProperty("location").GetString());   // the user still sees their own folder
+        string[] workingCopies = Directory.GetDirectories(_workspace, "copy-*", SearchOption.AllDirectories);
+        Assert.Single(workingCopies);
+
+        var request = new
+        {
+            frameOfReference = true, seriesUid = true, sopUid = true, modalities = new[] { "CT" },
+            keepCtLinked = false, keepPetCtLinked = false, seriesUids = (string[]?)null,
+            keepStructureSetsLinked = true, tagEdits = new[] { new { tag = "PatientID", value = "ANON001" } },
+            workOnCopy = separateCopy,
+        };
+        Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync($"/api/jobs/{id}/run", request)).StatusCode);
+        JsonElement done = await WaitFor(client, id, "done");
+
+        JsonElement result = done.GetProperty("result");
+        Assert.Equal(0, result.GetProperty("failureCount").GetInt32());
+        Assert.Equal(2, result.GetProperty("seriesChanged").GetInt32());
+        Assert.Equal(4, result.GetProperty("filesChanged").GetInt32());
+        string output = result.GetProperty("outputFolder").GetString()!;
+        Assert.Equal(separateCopy ? source + "_unlinked" : source, output);
+        ScanResult after = DicomScanner.Scan(output);
+        DicomSeriesInfo ct = after.Series.Single(s => s.Modality == "CT"), rs = after.Series.Single(s => s.Modality == "RTSTRUCT");
+        Assert.NotEqual(ctUid, ct.SeriesInstanceUid);
+        Assert.Equal("ANON001", ct.PatientId);
+        Assert.Equal(rsUid, rs.SeriesInstanceUid);
+        Assert.Equal([ct.SeriesInstanceUid], rs.ReferencedSeriesInstanceUids);
+        Assert.Equal(srBytes, File.ReadAllBytes(after.Series.Single(s => s.SeriesInstanceUid == srUid).Files.Single()));
+        if (separateCopy)
+        {
+            Assert.Equal(ctUid, DicomScanner.Scan(source).Series.Single(s => s.Modality == "CT").SeriesInstanceUid);   // originals untouched
+        }
+        Assert.Empty(Directory.GetFiles(study.Root, "*.tmp", SearchOption.AllDirectories));
+        // The temporary copy held patient data: it is gone as soon as the run has finished.
+        Assert.All(workingCopies, folder => Assert.False(Directory.Exists(folder)));
     }
 
     public void Dispose()
