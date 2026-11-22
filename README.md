@@ -138,6 +138,7 @@ command line (`--UnzipUnlink:RetentionMinutes=15`) or as environment variables
 | `UnzipUnlink:RetentionMinutes` | `60` | Idle time before an upload is deleted. |
 | `UnzipUnlink:MaxUploadMegabytes` | `20480` | Largest total upload for one job. |
 | `UnzipUnlink:OpenBrowser` | `true` | Open the default browser on start. |
+| `UnzipUnlink:WorkLocally` | `NetworkOnly` | When a folder on the server is copied to a local temp folder, worked on there and copied back: `NetworkOnly`, `Always` or `Never`. See [Network drives](#network-drives). |
 
 ## Desktop app
 
@@ -148,6 +149,33 @@ series and their link groups, choose what to change, and run. It follows the Win
 setting. It modifies files in place, so work on a copy if you need the originals (or use the web
 app's "write a separate copy" option). More screenshots are in
 [`UnzipUnlinkGUI/docs`](UnzipUnlinkGUI/docs).
+
+## Network drives
+
+Scanning and rewriting thousands of small files over a network share is slow, because every open,
+read, write and rename is a round trip to the server. When you open a folder on a network drive (a
+`\\server\share` path or a mapped drive letter), the desktop app and the web app therefore:
+
+1. copy the folder to a temporary folder on the local disk,
+2. scan it and make the changes there,
+3. copy the files that changed back to the network folder, and
+4. delete the temporary copy.
+
+What to know:
+
+- **Nothing changes on the network until step 3.** Each file is written beside its target and
+  swapped in only when complete. A structure set and the images it follows go back together, and
+  cancelling during the copy-back stops between such groups, never inside one.
+- Files that were not changed are not copied back.
+- With the web app's "write a separate copy", the whole rewritten study is written to the new
+  `<folder>_unlinked` folder instead and the original is not touched.
+- The temporary copy holds patient data. It lives under the system temp folder
+  (`UnzipUnlink\work`, or the web app's workspace), and is deleted when the run finishes (web app),
+  when you choose other data or close the app (desktop), or at the next start if the app crashed.
+- If the local disk does not have room for the study, the app says so and works on the network
+  folder directly, as before.
+- A `.zip` on a network drive is still extracted next to itself, on the network, before the
+  extracted folder is copied down.
 
 ## Repository layout
 

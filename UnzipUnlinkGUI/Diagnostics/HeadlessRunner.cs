@@ -18,7 +18,7 @@ namespace UnzipUnlinkGUI.Diagnostics;
 /// UnzipUnlinkGUI.exe --screenshot out.png [--source folder-or-zip | --demo] [--theme light|dark]
 ///                    [--run] [--report out.json] [--state confirm|about|dragover] [--mask-path text]
 ///                    [--series-uid] [--no-frame] [--no-sop] [--keep-ct] [--keep-petct] [--no-keep]
-///                    [--tag Keyword=value]...
+///                    [--tag Keyword=value]... [--work-locally | --work-in-place]
 ///                    [--shot-loading a.png] [--shot-running b.png] [--scale 1.5]
 ///                    [--cancel-loading] [--cancel-running] [--size 900x640] [--state selected]
 /// </code>
@@ -44,6 +44,8 @@ public sealed class HeadlessOptions
     public bool KeepPetCt { get; private set; }
     /// <summary>"Keyword=value" tag edits to add before the screenshot or run.</summary>
     public List<string> Tags { get; } = [];
+    /// <summary>Forces "copy to this computer, work there, copy back" on or off; null leaves it to the folder (network only).</summary>
+    public bool? WorkLocally { get; private set; }
     public bool NoKeep { get; private set; }
     public bool CancelLoading { get; private set; }
     public bool CancelRunning { get; private set; }
@@ -81,6 +83,8 @@ public sealed class HeadlessOptions
                 case "--keep-petct": options.KeepPetCt = true; break;
                 case "--no-keep": options.NoKeep = true; break;
                 case "--tag": options.Tags.Add(Next()); break;
+                case "--work-locally": options.WorkLocally = true; break;
+                case "--work-in-place": options.WorkLocally = false; break;
                 case "--cancel-loading": options.CancelLoading = true; break;
                 case "--cancel-running": options.CancelRunning = true; break;
                 case "--size":
@@ -159,6 +163,7 @@ public static class HeadlessRunner
             }
             else if (!string.IsNullOrEmpty(options.Source))
             {
+                viewModel.WorkLocally = options.WorkLocally ?? viewModel.WorkLocally;
                 await viewModel.LoadAsync(options.Source);
             }
 
@@ -179,6 +184,7 @@ public static class HeadlessRunner
 
             report["stageAfterLoad"] = viewModel.Stage.ToString();
             report["sourceNote"] = viewModel.SourceNote;
+            report["workingLocally"] = viewModel.IsWorkingLocally;
             report["runButton"] = viewModel.RunButtonText;
             report["keepCt"] = viewModel.KeepCt;
             report["keepPetCt"] = viewModel.KeepPetCt;
