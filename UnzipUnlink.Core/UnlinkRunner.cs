@@ -14,6 +14,12 @@ public static class UnlinkRunner
 {
     private const string TempSuffix = ".unlink.tmp";
 
+    /// <summary>
+    /// Files up to this size are read and written whole. Larger ones (big multi-frame objects) are streamed, so
+    /// that many of them in flight at once cannot exhaust memory.
+    /// </summary>
+    internal const long WholeFileLimit = 16 << 20;
+
     public static UnlinkResult Run(UnlinkPlan plan, IProgress<UnlinkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -37,7 +43,7 @@ public static class UnlinkRunner
             progress?.Report(new UnlinkProgress(seriesDone, plan.Series.Count, filesDone, filesTotal, label));
             // Deliberately not cancellable: a series is rewritten completely or not at all. Stopping half-way
             // would leave one series carrying two sets of identifiers, which re-imports as two broken series.
-            Parallel.ForEach(seriesPlan.Series.Files, ParallelSettings.For(CancellationToken.None), path =>
+            ParallelSettings.ForEach(seriesPlan.Series.Files, seriesPlan.Series.Files.FirstOrDefault(), CancellationToken.None, path =>
             {
                 try
                 {
@@ -88,9 +94,20 @@ public static class UnlinkRunner
         string temp = path + TempSuffix;
         try
         {
-            using (FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16))
-            using (FileStream output = new(temp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
+            if (new FileInfo(path).Length <= WholeFileLimit)
             {
+                // One read and one write per file. On a network share every read or write is a round trip to the
+                // server, so pulling a slice through a 64 KB buffer costs many times what the bytes themselves do.
+                byte[] original = File.ReadAllBytes(path);
+                using var rewritten = new MemoryStream(original.Length + 1024);
+                rewrite(new MemoryStream(original, writable: false), rewritten);
+                using FileStream output = new(temp, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 1, FileOptions.SequentialScan);
+                output.Write(rewritten.GetBuffer(), 0, (int)rewritten.Length);
+            }
+            else
+            {
+                using FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan);
+                using FileStream output = new(temp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.SequentialScan);
                 rewrite(input, output);
             }
             File.Move(temp, path, overwrite: true);

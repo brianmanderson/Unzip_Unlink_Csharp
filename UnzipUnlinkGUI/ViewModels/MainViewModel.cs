@@ -1258,22 +1258,7 @@ public sealed class MainViewModel : ObservableObject
         });
     }
 
-    internal static bool IsNetworkPath(string path)
-    {
-        try
-        {
-            if (path.StartsWith(@"\\", StringComparison.Ordinal) && !path.StartsWith(@"\\?\", StringComparison.Ordinal))
-            {
-                return true;
-            }
-            string? root = Path.GetPathRoot(path);
-            return !string.IsNullOrEmpty(root) && new DriveInfo(root).DriveType == DriveType.Network;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    internal static bool IsNetworkPath(string path) => StorageInfo.IsNetworkPath(path);
 
     private static double Fraction(int done, int total) => total <= 0 ? 0 : Math.Clamp((double)done / total, 0, 1);
 
