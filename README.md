@@ -174,8 +174,12 @@ What to know:
   when you choose other data or close the app (desktop), or at the next start if the app crashed.
 - If the local disk does not have room for the study, the app says so and works on the network
   folder directly, as before.
-- A `.zip` on a network drive is still extracted next to itself, on the network, before the
-  extracted folder is copied down.
+- A `.zip` on a network drive is extracted straight to the local temporary folder, not next to
+  itself. The extracted, unlinked folder is written next to the `.zip` when the run finishes: it
+  goes to a `.partial` folder first and is renamed only once every file has arrived, so a cancelled
+  or failed run leaves nothing behind. Opening a `.zip` and closing it without running therefore
+  no longer leaves an extracted folder on the network. If a folder with the `.zip`'s name already
+  exists next to it, that folder is used as before.
 
 ## Repository layout
 

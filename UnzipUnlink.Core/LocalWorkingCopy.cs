@@ -13,6 +13,11 @@ public sealed class UploadResult
     /// <summary>Files that could not be written to the destination (path there, and why). They keep their old content.</summary>
     public IReadOnlyList<FileFailure> Failures { get; init; } = [];
     public bool Cancelled { get; init; }
+    /// <summary>
+    /// True when this was a whole new folder (a network .zip extracted locally): it either arrives complete
+    /// or not at all, so anything short of <see cref="Complete"/> means nothing was left on the network.
+    /// </summary>
+    public bool WholeFolder { get; init; }
     /// <summary>True when every requested file is now at the destination.</summary>
     public bool Complete => !Cancelled && Failures.Count == 0;
 }
@@ -39,6 +44,11 @@ public sealed class LocalWorkingCopy : IDisposable
     /// <summary>The local folder holding the copy: scan and rewrite this one.</summary>
     public string LocalRoot { get; }
     public int FileCount { get; private set; }
+    /// <summary>
+    /// True when <see cref="SourceRoot"/> does not exist yet: the working copy was extracted from a .zip on the
+    /// network, and the folder is created there, complete, the first time the result is sent back.
+    /// </summary>
+    public bool IsNewFolder { get; private set; }
     public long TotalBytes { get; private set; }
 
     private LocalWorkingCopy(string sourceRoot, string workspace)
@@ -110,6 +120,108 @@ public sealed class LocalWorkingCopy : IDisposable
         }
     }
 
+    /// <summary>
+    /// Extracts a .zip that lives on a network share straight into a new local folder, instead of extracting
+    /// it next to itself on the network and then copying the result down. <paramref name="destinationFolder"/>
+    /// is where the extracted folder belongs on the network; it must not exist yet and nothing is written
+    /// there until <see cref="SendBack"/>. Returns null when the local disk has no room for the contents.
+    /// </summary>
+    public static LocalWorkingCopy? CreateFromZip(string zipPath, string destinationFolder, IProgress<ZipProgress>? progress = null,
+        CancellationToken cancellationToken = default, string? parent = null)
+    {
+        parent = Path.GetFullPath(parent ?? DefaultParent);
+        Directory.CreateDirectory(parent);
+        RemoveAbandoned(parent);
+
+        long bytes;
+        using (System.IO.Compression.ZipArchive archive = System.IO.Compression.ZipFile.OpenRead(zipPath))
+        {
+            bytes = archive.Entries.Sum(e => e.Length);
+        }
+        if (!HasRoomFor(parent, bytes))
+        {
+            return null;
+        }
+
+        var copy = new LocalWorkingCopy(Path.GetFullPath(destinationFolder), Path.Combine(parent, "copy-" + Guid.NewGuid().ToString("N")))
+        {
+            IsNewFolder = true,
+        };
+        Directory.CreateDirectory(copy.LocalRoot);
+        copy._lock = new FileStream(Path.Combine(copy._workspace, LockFileName), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+        Track(copy);
+        try
+        {
+            ZipTools.Extract(zipPath, copy.LocalRoot, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] files = Directory.GetFiles(copy.LocalRoot, "*", SearchOption.AllDirectories);
+            copy.FileCount = files.Length;
+            copy.TotalBytes = files.Sum(f => new FileInfo(f).Length);
+            return copy;
+        }
+        catch
+        {
+            copy.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Sends the outcome of a run to the network: the files that changed, or, for a folder that does not exist
+    /// there yet (<see cref="IsNewFolder"/>), the whole folder.
+    /// </summary>
+    public UploadResult SendBack(UnlinkPlan plan, UnlinkResult run, IProgress<CopyProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        IsNewFolder
+            ? UploadNewFolder(progress, cancellationToken)
+            : Upload(RewrittenFiles(plan, run), progress: progress, cancellationToken: cancellationToken);
+
+    /// <summary>
+    /// Creates <see cref="SourceRoot"/> on the network with everything in the working copy. The files go to a
+    /// ".partial" folder first, which is renamed only when all of them have arrived and removed otherwise: a
+    /// half-written folder next to the .zip would be taken for the finished extraction the next time it is opened.
+    /// </summary>
+    private UploadResult UploadNewFolder(IProgress<CopyProgress>? progress, CancellationToken cancellationToken)
+    {
+        string partial = SourceRoot + ".partial";
+        TryDeleteDirectory(partial);
+        // Small groups, so that cancelling is noticed quickly; the folder is all or nothing anyway.
+        IReadOnlyList<IReadOnlyList<string>> groups = Directory.GetFiles(LocalRoot, "*", SearchOption.AllDirectories).Chunk(200).ToList();
+        UploadResult upload = Upload(groups, partial, progress, cancellationToken);
+        var failures = upload.Failures
+            .Select(f => new FileFailure(Path.Combine(SourceRoot, Path.GetRelativePath(partial, f.Path)), f.Error))
+            .ToList();
+        if (upload.Complete)
+        {
+            try
+            {
+                // Empty folders in the archive are part of the study layout too.
+                foreach (string directory in Directory.GetDirectories(LocalRoot, "*", SearchOption.AllDirectories))
+                {
+                    Directory.CreateDirectory(Path.Combine(partial, Path.GetRelativePath(LocalRoot, directory)));
+                }
+                Directory.CreateDirectory(partial);
+                Directory.Move(partial, SourceRoot);
+                IsNewFolder = false;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                failures.Add(new FileFailure(SourceRoot, ex.Message));
+            }
+        }
+        if (IsNewFolder)
+        {
+            TryDeleteDirectory(partial);
+        }
+        return new UploadResult
+        {
+            FilesCopied = IsNewFolder ? 0 : upload.FilesCopied,
+            GroupsCopied = upload.GroupsCopied,
+            Failures = failures,
+            Cancelled = upload.Cancelled,
+            WholeFolder = true,
+        };
+    }
+
     /// <summary>The local path of a file or folder given its path under <see cref="SourceRoot"/>.</summary>
     public string ToLocal(string sourcePath) => Path.Combine(LocalRoot, Path.GetRelativePath(SourceRoot, sourcePath));
 
@@ -142,8 +254,11 @@ public sealed class LocalWorkingCopy : IDisposable
     /// </summary>
     public UnlinkResult Combine(UnlinkPlan plan, UnlinkResult run, UploadResult upload, TimeSpan duration) => new()
     {
-        SeriesChanged = plan.Series.Take(run.SeriesChanged).GroupBy(s => s.Unit).Take(upload.GroupsCopied).Sum(unit => unit.Count()),
-        FilesChanged = upload.FilesCopied,
+        // A whole new folder arrives complete or not at all; otherwise count the units that made it back.
+        SeriesChanged = upload.WholeFolder
+            ? (upload.Complete ? run.SeriesChanged : 0)
+            : plan.Series.Take(run.SeriesChanged).GroupBy(s => s.Unit).Take(upload.GroupsCopied).Sum(unit => unit.Count()),
+        FilesChanged = upload.WholeFolder ? (upload.Complete ? run.FilesChanged : 0) : upload.FilesCopied,
         Failures = run.Failures.Select(f => new FileFailure(ToSource(f.Path), f.Error))
             .Concat(upload.Failures.Select(f => new FileFailure(f.Path, "Could not be copied back to the network folder: " + f.Error)))
             .OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
