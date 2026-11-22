@@ -6,7 +6,9 @@
 // Serves publish/pages/wwwroot from a sub-path (/Unzip_Unlink_Csharp/, like GitHub Pages) and, in light and dark:
 //  - loads the page and checks that every request stays under the sub-path, with no console errors or CSP violations;
 //  - feeds it data/SyntheticDemo/DemoStudy_zipped.zip, runs with the defaults, downloads the .zip and the UID report,
-//    and verifies the result with the native engine (Verifier.cs);
+//    and verifies the result with the native engine (Verifier.cs), including the structure set that follows its CT;
+//  - in the second theme, also picks a tag from the searchable list, checks that a bad value blocks the run, and
+//    verifies the new value in every rewritten file;
 // and once:
 //  - compares in-browser rewrites byte for byte with the native path-based UnlinkRunner.RewriteFile;
 //  - "Open a folder" in place and to a new folder (Chromium), with the folder picker answered by an origin-private
@@ -49,9 +51,9 @@ function check(name, ok, detail = "") {
   results.push({ name, ok });
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  - ${detail}` : ""}`);
 }
-function verify(name, output) {
+function verify(name, output, ...tagEdits) {
   let text, ok = true;
-  try { text = native("verify", demo, output); } catch (error) { text = String(error.stdout ?? error.message); ok = false; }
+  try { text = native("verify", demo, output, ...tagEdits); } catch (error) { text = String(error.stdout ?? error.message); ok = false; }
   check(name, ok && text.includes("VERIFY OK"), text.trim().split("\n").filter((l) => !l.startsWith("VERIFY")).join(" | "));
 }
 
@@ -110,6 +112,33 @@ try {
     check(`[${theme}] review lists the study`, rows === 18, `${rows} series; ${summary}; body ${isDark}`);
     const after = await page.locator("#seriesBody td.after .link-badge").allTextContents();
     check(`[${theme}] before/after link preview`, after.length === 18, `after: ${after.join(" ")}`);
+    const structureSet = page.locator("#seriesBody tr[data-uid]", { hasText: "RTSTRUCT" });
+    check(`[${theme}] the structure set is offered to follow its images`,
+      await page.isChecked("#optKeepStruct") && (await structureSet.locator("td.after").innerText()).includes("follows its images"),
+      (await structureSet.locator("td.after").innerText()).replace(/\s+/g, " "));
+
+    // Second theme only, so the first run stays the plain defaults: change a tag picked from the searchable list.
+    const tagEdits = [];
+    if (theme !== themes[0]) {
+      await page.fill("#tagSearch", "0010,0020");
+      await page.locator("#tagResults button").first().waitFor();   // the tag list is loaded on first use
+      const offered = await page.locator("#tagResults button b").allTextContents();
+      await page.locator("#tagResults button").first().click();
+      await page.fill("#tagSearch", "study date");
+      await page.locator("#tagResults button", { hasText: "StudyDate" }).first().click();
+      const inputs = page.locator("#tagEdits input");
+      await inputs.nth(0).fill("BROWSER-CHECK");
+      await inputs.nth(1).fill("tomorrow");
+      await page.locator("#tagEdits .tag-error", { hasText: "YYYYMMDD" }).waitFor();
+      const blocked = await page.isDisabled("#runButton");
+      await inputs.nth(1).fill("20300101");
+      await page.locator("#tagEdits .tag-now", { hasText: "DEMO-0001" }).waitFor();
+      await page.locator("#seriesBody .edits", { hasText: "PatientID: DEMO-0001 → BROWSER-CHECK" }).first().waitFor();
+      await page.locator("#runButton:not([disabled])").waitFor();
+      tagEdits.push("PatientID=BROWSER-CHECK", "StudyDate=20300101");
+      check(`[${theme}] a tag is found by number, a bad value blocks the run, old → new is previewed`,
+        offered.length === 1 && offered[0] === "PatientID" && blocked, `offered ${offered.join(",")}; run blocked while invalid: ${blocked}`);
+    }
     // Viewport, not full page: the sticky action bar belongs at the bottom of the window.
     await page.screenshot({ path: path.join(out, `browser-review-${theme}.png`) });
 
@@ -123,9 +152,10 @@ try {
     check(`[${theme}] .zip download`, zip.name === "DemoStudy_zipped_unlinked.zip", `${zip.name}, ${fs.statSync(zip.file).size} bytes`);
     const csv = await download(page, "#downloadReport", path.join(out, `report-${theme}.csv`));
     const lines = fs.readFileSync(csv.file, "utf8").trim().split(/\r\n/);
-    check(`[${theme}] UID report`, csv.name === "DemoStudy_zipped_uid_report.csv" && lines.length === 18 && lines[0].startsWith("Modality,"),
+    check(`[${theme}] UID report`, csv.name === "DemoStudy_zipped_uid_report.csv" && lines.length === 19 && lines[0].startsWith("Modality,")
+      && lines.some((l) => l.startsWith("RTSTRUCT,")) && tagEdits.every((e) => lines[1].includes(e)),
       `${csv.name}, ${lines.length - 1} series rows`);
-    verify(`[${theme}] downloaded .zip verified against the native engine`, zip.file);
+    verify(`[${theme}] downloaded .zip verified against the native engine`, zip.file, ...tagEdits);
 
     const foreign = requests.filter((u) => !u.startsWith(appUrl) && !u.startsWith("blob:") && !u.startsWith("data:"));
     const served = log.slice(before).filter((r) => !r.url.startsWith(SUB_PATH));

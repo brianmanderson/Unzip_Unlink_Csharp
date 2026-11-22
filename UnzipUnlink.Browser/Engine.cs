@@ -74,7 +74,12 @@ public static partial class Engine
     public static string CreatePlan(string requestJson)
     {
         ScanResult scan = _scan ?? throw new InvalidOperationException("Nothing has been scanned.");
-        _plan = UnlinkPlanner.Create(scan, ParseRequest(requestJson).ToOptions());
+        ChangeRequest request = ParseRequest(requestJson);
+        if (request.TagErrors().FirstOrDefault(e => e is not null) is { } tagError)
+        {
+            throw new ArgumentException(tagError);
+        }
+        _plan = UnlinkPlanner.Create(scan, request.ToOptions());
         return JsonSerializer.Serialize(Views.Plan(_plan), ViewJson.Default.PlanView);
     }
 
@@ -87,6 +92,42 @@ public static partial class Engine
         using var output = new MemoryStream(input.Length + 512);
         UnlinkRunner.Rewrite(source, output, plan.Series[seriesIndex]);
         return output.Length == output.Capacity ? output.GetBuffer() : output.ToArray();
+    }
+
+    /// <summary>Every DICOM tag that can be overwritten with a typed value, as JSON (the same shape as /api/tags on the server).</summary>
+    [JSExport]
+    public static string Tags() => JsonSerializer.Serialize(
+        DicomTagCatalog.Editable.Select(t => new TagView(t.Keyword, t.Name, t.Tag, t.Vr)).ToList(), ViewJson.Default.ListTagView);
+
+    /// <summary>
+    /// For every scanned series, the keys of its first and last file: the two the page reads to show what a tag
+    /// holds today. JSON: { seriesUid: [firstKey, lastKey] }.
+    /// </summary>
+    [JSExport]
+    public static string SampleFiles()
+    {
+        ScanResult scan = _scan ?? throw new InvalidOperationException("Nothing has been scanned.");
+        return JsonSerializer.Serialize(
+            scan.Series.ToDictionary(s => s.SeriesInstanceUid, s => new[] { s.Files[0], s.Files[^1] }), ViewJson.Default.DictionaryStringStringArray);
+    }
+
+    /// <summary>
+    /// The current value of each tag (a JSON array of keywords) in one file, as a JSON array of strings (null where
+    /// absent). Returns "" when the bytes could not be read, e.g. because only the start of the file was supplied.
+    /// </summary>
+    [JSExport]
+    public static string TagValues(byte[] bytes, string tagsJson)
+    {
+        try
+        {
+            string[] tags = JsonSerializer.Deserialize(tagsJson, ViewJson.Default.StringArray) ?? [];
+            using var stream = new MemoryStream(bytes, writable: false);
+            return JsonSerializer.Serialize(TagValueReader.Read(stream, tags).ToList(), ViewJson.Default.ListString);
+        }
+        catch (Exception)
+        {
+            return "";
+        }
     }
 
     /// <summary>The UID report (.csv) for the current plan.</summary>
@@ -120,10 +161,18 @@ public static partial class Engine
 /// <summary>What the page asked to change. Mirrors the server's ChangeRequest.</summary>
 public sealed record ChangeRequest(
     bool FrameOfReference, bool SeriesUid, bool SopUid, string[]? Modalities,
-    bool KeepCtLinked, bool KeepPetCtLinked, string[]? SeriesUids)
+    bool KeepCtLinked, bool KeepPetCtLinked, string[]? SeriesUids,
+    bool KeepStructureSetsLinked = false, TagEditRequest[]? TagEdits = null)
 {
-    public UnlinkOptions ToOptions() => new()
+    /// <summary>One entry per tag edit, in order: null when it is fine, otherwise what is wrong with it.</summary>
+    public IReadOnlyList<string?> TagErrors() =>
+        DicomTagCatalog.Validate((TagEdits ?? []).Select(e => new TagEdit(e.Tag ?? "", e.Value ?? "")));
+
+    /// <param name="withTagEdits">False to plan the UID changes alone, for a preview while a tag edit is still invalid.</param>
+    public UnlinkOptions ToOptions(bool withTagEdits = true) => new()
     {
+        KeepStructureSetsLinked = KeepStructureSetsLinked,
+        TagEdits = withTagEdits ? (TagEdits ?? []).Select(e => new TagEdit(e.Tag ?? "", e.Value ?? "")).ToList() : [],
         NewFrameOfReferenceUid = FrameOfReference,
         NewSeriesInstanceUid = SeriesUid,
         NewSopInstanceUid = SopUid,
@@ -134,21 +183,29 @@ public sealed record ChangeRequest(
     };
 }
 
+/// <summary>"Set this tag (keyword or number) to this value" as the page sends it.</summary>
+public sealed record TagEditRequest(string? Tag, string? Value);
+
+public sealed record TagView(string Keyword, string Name, string Tag, string Vr);
+
 public sealed record FileProblem(string File, string Error);
 
 public sealed record SeriesView(
     string Uid, string Modality, bool Supported, string Number, string Description, int Files, long Bytes,
-    string Patient, string PatientId, string Study, string StudyDescription, string StudyDate, int? Frame, bool MixedFrames);
+    string Patient, string PatientId, string Study, string StudyDescription, string StudyDate, int? Frame, bool MixedFrames,
+    bool StructureSet, IReadOnlyList<string> Follows);
 
 public sealed record ScanView(
     int FileCount, int OtherFileCount, int UnreadableCount, IReadOnlyList<FileProblem> Unreadable,
     int DicomDirCount, double Seconds, IReadOnlyList<SeriesView> Series);
 
-public sealed record PreviewSeries(bool Selected, int? Frame);
+/// <param name="StructureSet">Structure sets only: follows | leftBehind | imagesNotSelected | imagesNotFound.</param>
+public sealed record PreviewSeries(bool Selected, int? Frame, string? StructureSet);
 
-public sealed record PreviewView(int SeriesCount, int FileCount, Dictionary<string, PreviewSeries> Series);
+public sealed record PreviewView(int SeriesCount, int FileCount, IReadOnlyList<string?> TagErrors, Dictionary<string, PreviewSeries> Series);
 
-public sealed record PlannedSeries(string Label, IReadOnlyList<string> Files);
+/// <param name="Unit">Series with the same unit (a structure set and its images) are rewritten together or not at all.</param>
+public sealed record PlannedSeries(string Label, IReadOnlyList<string> Files, int Unit);
 
 public sealed record PlanView(int SeriesCount, int FileCount, IReadOnlyList<PlannedSeries> Series);
 
@@ -157,6 +214,10 @@ public sealed record PlanView(int SeriesCount, int FileCount, IReadOnlyList<Plan
 [JsonSerializable(typeof(PreviewView))]
 [JsonSerializable(typeof(PlanView))]
 [JsonSerializable(typeof(ChangeRequest))]
+[JsonSerializable(typeof(List<TagView>))]
+[JsonSerializable(typeof(Dictionary<string, string[]>))]
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(List<string?>))]
 internal sealed partial class ViewJson : JsonSerializerContext;
 
 /// <summary>Shapes results for the page exactly like UnzipUnlink.Web's JobView, so both front ends render the same data.</summary>
@@ -176,12 +237,16 @@ internal static class Views
                 s.SeriesInstanceUid, s.Modality, s.IsSupported, s.SeriesNumber, s.SeriesDescription, s.Files.Count, s.TotalBytes,
                 s.PatientName.Replace('^', ' ').Trim(), s.PatientId, s.StudyInstanceUid, s.StudyDescription, s.StudyDate,
                 s.FrameOfReferenceUid.Length == 0 ? null : frames[s.FrameOfReferenceUid],
-                s.DistinctFrameOfReferenceCount > 1)).ToList());
+                s.DistinctFrameOfReferenceCount > 1,
+                s.IsStructureSet,
+                s.IsStructureSet ? UnlinkPlanner.ImagesOf(s, scan.Series).Select(i => i.SeriesInstanceUid).ToList() : [])).ToList());
     }
 
     public static PreviewView Preview(ScanResult scan, ChangeRequest request)
     {
-        UnlinkPlan plan = UnlinkPlanner.Create(scan, request.ToOptions());
+        // An edit that is still being typed must not blank the preview: plan without the edits until they are valid.
+        IReadOnlyList<string?> tagErrors = request.TagErrors();
+        UnlinkPlan plan = UnlinkPlanner.Create(scan, request.ToOptions(withTagEdits: tagErrors.All(e => e is null)));
         Dictionary<string, SeriesPlan> planned = plan.Series.ToDictionary(p => p.Series.SeriesInstanceUid, StringComparer.Ordinal);
         string After(DicomSeriesInfo s) =>
             planned.TryGetValue(s.SeriesInstanceUid, out SeriesPlan? p) && p.NewFrameOfReferenceUid is { } changed ? changed : s.FrameOfReferenceUid;
@@ -189,9 +254,13 @@ internal static class Views
         return new PreviewView(
             plan.Series.Count,
             plan.FileCount,
+            tagErrors,
             scan.Series.ToDictionary(
                 s => s.SeriesInstanceUid,
-                s => new PreviewSeries(planned.ContainsKey(s.SeriesInstanceUid), After(s).Length == 0 ? null : frames[After(s)])));
+                s => new PreviewSeries(
+                    planned.ContainsKey(s.SeriesInstanceUid),
+                    After(s).Length == 0 ? null : frames[After(s)],
+                    plan.StructureSets.TryGetValue(s.SeriesInstanceUid, out StructureSetStatus status) ? StatusName(status) : null)));
     }
 
     public static PlanView Plan(UnlinkPlan plan) => new(
@@ -199,7 +268,17 @@ internal static class Views
         plan.FileCount,
         plan.Series.Select(p => new PlannedSeries(
             $"{p.Series.Modality} · {(p.Series.SeriesDescription.Length > 0 ? p.Series.SeriesDescription : "(no description)")}",
-            p.Series.Files)).ToList());
+            p.Series.Files,
+            p.Unit)).ToList());
+
+    /// <summary>The names the server JSON uses for <see cref="StructureSetStatus"/> (camelCase).</summary>
+    private static string StatusName(StructureSetStatus status) => status switch
+    {
+        StructureSetStatus.Follows => "follows",
+        StructureSetStatus.LeftBehind => "leftBehind",
+        StructureSetStatus.ImagesNotSelected => "imagesNotSelected",
+        _ => "imagesNotFound",
+    };
 
     private static string FileName(string key) => key[(key.LastIndexOfAny(['/', '\\']) + 1)..];
 

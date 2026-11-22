@@ -88,6 +88,9 @@ api.MapGet("/info", (HttpContext context) => Results.Json(new
     supportedModalities = UnlinkOptions.SupportedModalities.OrderBy(m => m),
 }));
 
+// The DICOM tags that can be overwritten with a typed value; the page filters this list as the user types.
+api.MapGet("/tags", () => Results.Json(DicomTagCatalog.Editable.Select(t => new { keyword = t.Keyword, name = t.Name, tag = t.Tag, vr = t.Vr })));
+
 // Folder picker for "a folder on this machine".
 api.MapGet("/fs", (HttpContext context, string? path) =>
 {
@@ -189,7 +192,20 @@ api.MapPost("/jobs/{id}/preview", (JobManager jobs, string id, ChangeRequest req
     {
         return Api.NotFound();
     }
-    return Results.Json(JobView.Preview(scan, request.ToOptions()));
+    return Results.Json(JobView.Preview(scan, request));
+});
+
+// What the given tags hold today in each series (first and last file), so the page can show "old -> new".
+api.MapPost("/jobs/{id}/tag-values", (JobManager jobs, string id, TagValuesRequest request) =>
+{
+    if (jobs.Find(id) is not { Scan: { } scan })
+    {
+        return Api.NotFound();
+    }
+    string[] tags = (request.Tags ?? []).Take(50).ToArray();
+    return Results.Json(TagValueReader.ReadForScan(scan, tags).ToDictionary(
+        kv => kv.Key,
+        kv => kv.Value.Select(v => new { value = v.Value, varies = v.Varies })));
 });
 
 api.MapPost("/jobs/{id}/run", (JobManager jobs, string id, ChangeRequest request) =>
@@ -201,6 +217,10 @@ api.MapPost("/jobs/{id}/run", (JobManager jobs, string id, ChangeRequest request
     if (job.Scan is null)
     {
         return Api.Error(StatusCodes.Status409Conflict, "This job has not been scanned yet.");
+    }
+    if (request.TagErrors().FirstOrDefault(e => e is not null) is { } tagError)
+    {
+        return Api.Error(StatusCodes.Status400BadRequest, tagError);
     }
     if (UnlinkPlanner.Create(job.Scan, request.ToOptions()).Series.Count == 0)
     {
@@ -257,23 +277,14 @@ api.MapGet("/jobs/{id}/download", async (HttpContext context, JobManager jobs, s
     return Results.Empty;
 });
 
-// Old UID -> new UID for every rewritten series. Contains no patient identifiers.
+// Old UID -> new UID for every rewritten series, plus the tag values the user typed. No patient details are copied from the files.
 api.MapGet("/jobs/{id}/report.csv", (JobManager jobs, string id) =>
 {
     if (jobs.Find(id) is not { ExecutedPlan: { } plan } job)
     {
         return Api.NotFound();
     }
-    var csv = new StringBuilder("Modality,SeriesNumber,SeriesDescription,Files,OldSeriesInstanceUID,NewSeriesInstanceUID,OldFrameOfReferenceUID,NewFrameOfReferenceUID,NewSOPInstanceUIDs\r\n");
-    foreach (SeriesPlan item in plan.Series)
-    {
-        DicomSeriesInfo s = item.Series;
-        csv.AppendJoin(',', Api.Csv(s.Modality), Api.Csv(s.SeriesNumber), Api.Csv(s.SeriesDescription), s.Files.Count.ToString(),
-            Api.Csv(s.SeriesInstanceUid), Api.Csv(item.NewSeriesInstanceUid ?? "(unchanged)"),
-            Api.Csv(s.FrameOfReferenceUid), Api.Csv(item.NewFrameOfReferenceUid ?? "(unchanged)"),
-            item.NewSopInstanceUids ? "yes" : "no").Append("\r\n");
-    }
-    return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"{job.Name}_uid_report.csv");
+    return Results.File(Encoding.UTF8.GetBytes(UidReport.ToCsv(plan)), "text/csv", $"{job.Name}_uid_report.csv");
 });
 
 // --- Start -----------------------------------------------------------------------------------------
@@ -321,6 +332,7 @@ catch (IOException ex) when (ex.InnerException is Microsoft.AspNetCore.Connectio
 
 public sealed record CreateUploadRequest(string? Name);
 public sealed record CreateLocalRequest(string Path);
+public sealed record TagValuesRequest(string[]? Tags);
 
 /// <summary>The address the app will listen on, and whether a copy of it is already there.</summary>
 internal sealed record PortChoice(string Url, bool AlreadyRunning, string? Note);
@@ -601,6 +613,9 @@ internal static class JobView
                 studyDate = s.StudyDate,
                 frame = s.FrameOfReferenceUid.Length == 0 ? (int?)null : frames[s.FrameOfReferenceUid],
                 mixedFrames = s.DistinctFrameOfReferenceCount > 1,
+                structureSet = s.IsStructureSet,
+                // A structure set: the image series in this study it was drawn on (empty when they are not here).
+                follows = s.IsStructureSet ? UnlinkPlanner.ImagesOf(s, scan.Series).Select(i => i.SeriesInstanceUid) : [],
             }),
         };
     }
@@ -609,9 +624,12 @@ internal static class JobView
     /// For every series: is it selected, and which frame of reference will it be in afterwards? Frames are
     /// returned as small integers so the browser can show which series end up registered to each other.
     /// </summary>
-    public static object Preview(ScanResult scan, UnlinkOptions options)
+    public static object Preview(ScanResult scan, ChangeRequest request)
     {
-        UnlinkPlan plan = UnlinkPlanner.Create(scan, options);
+        // An edit that is still being typed must not blank the preview: plan without the edits until they are valid.
+        IReadOnlyList<string?> tagErrors = request.TagErrors();
+        bool tagsValid = tagErrors.All(e => e is null);
+        UnlinkPlan plan = UnlinkPlanner.Create(scan, request.ToOptions(withTagEdits: tagsValid));
         Dictionary<string, SeriesPlan> planned = plan.Series.ToDictionary(p => p.Series.SeriesInstanceUid, StringComparer.Ordinal);
         string After(DicomSeriesInfo s) =>
             planned.TryGetValue(s.SeriesInstanceUid, out SeriesPlan? p) && p.NewFrameOfReferenceUid is { } changed ? changed : s.FrameOfReferenceUid;
@@ -620,12 +638,15 @@ internal static class JobView
         {
             seriesCount = plan.Series.Count,
             fileCount = plan.FileCount,
+            tagErrors,
             series = scan.Series.ToDictionary(
                 s => s.SeriesInstanceUid,
                 s => new
                 {
                     selected = planned.ContainsKey(s.SeriesInstanceUid),
                     frame = After(s).Length == 0 ? (int?)null : frames[After(s)],
+                    // Structure sets only: follows | leftBehind | imagesNotSelected | imagesNotFound.
+                    structureSet = plan.StructureSets.TryGetValue(s.SeriesInstanceUid, out StructureSetStatus status) ? status : (StructureSetStatus?)null,
                 }),
         };
     }

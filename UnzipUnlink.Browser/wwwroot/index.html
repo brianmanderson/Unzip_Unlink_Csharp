@@ -130,7 +130,7 @@
           <div class="card">
             <h3>Which images</h3>
             <div class="modality-toggles" id="modalityToggles"></div>
-            <p class="fineprint">Only CT, MR and PET are modified. Structure sets, plans, dose and registrations are left exactly as they are.</p>
+            <p class="fineprint">Only CT, MR and PET can be selected. A structure set can follow its images (see Keep together); plans, dose and registrations are left exactly as they are.</p>
           </div>
 
           <div class="card" id="keepCard">
@@ -145,6 +145,21 @@
               <span class="switch" aria-hidden="true"></span>
               <span><strong>PET with its CT</strong><small id="keepPetHint">A PET and the CT it shares a frame of reference with stay registered to each other.</small></span>
             </label>
+            <label class="switch-row">
+              <input type="checkbox" id="optKeepStruct">
+              <span class="switch" aria-hidden="true"></span>
+              <span><strong>Structure sets with their images</strong><small id="keepStructHint">A structure set is repointed at the new identifiers of the images it was drawn on.</small></span>
+            </label>
+          </div>
+
+          <div class="card" id="tagCard">
+            <h3>Change other tags</h3>
+            <div id="tagEdits"></div>
+            <div class="tag-picker">
+              <input type="search" id="tagSearch" class="input" placeholder="Search tags, e.g. PatientID" spellcheck="false" autocomplete="off" aria-label="Search for a DICOM tag to change" aria-controls="tagResults">
+              <ul class="tag-results" id="tagResults" hidden></ul>
+            </div>
+            <p class="fineprint">Pick a tag, then type its new value. It is written to every image of the selected series, and to a structure set that follows them.</p>
           </div>
 
           <div class="card" id="outputCard" hidden>
@@ -182,6 +197,7 @@
             <span><span class="link-badge g0">A</span> shares a frame of reference with other series</span>
             <span><span class="link-badge solo">&ndash;</span> stands alone</span>
             <span><span class="pill new">new IDs</span> will be rewritten</span>
+            <span><span class="pill new">follows its images</span> structure set, repointed</span>
           </div>
         </div>
       </div>

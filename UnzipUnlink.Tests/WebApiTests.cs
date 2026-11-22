@@ -264,6 +264,103 @@ public sealed class WebApiTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Tag_list_offers_ordinary_tags_and_no_identifiers()
+    {
+        HttpClient client = CreateClient();
+
+        JsonElement tags = await client.GetFromJsonAsync<JsonElement>("/api/tags");
+
+        List<JsonElement> list = tags.EnumerateArray().ToList();
+        JsonElement patientId = list.Single(t => t.GetProperty("keyword").GetString() == "PatientID");
+        Assert.Equal("(0010,0020)", patientId.GetProperty("tag").GetString());
+        Assert.Equal("Patient ID", patientId.GetProperty("name").GetString());
+        Assert.DoesNotContain(list, t => t.GetProperty("vr").GetString() is "UI" or "SQ");
+    }
+
+    [Fact]
+    public async Task Structure_set_follows_its_images_and_tag_edits_are_checked_then_applied()
+    {
+        using var study = new SyntheticStudy();
+        string ctUid = study.AddSeries("CT", SyntheticStudy.NewUid(), slices: 3, subfolder: "Export/ct");
+        string rsUid = study.AddStructureSet(ctUid, subfolder: "Export/rs");
+        string folder = Path.Combine(study.Root, "Export");
+        HttpClient client = CreateClient("Always");
+        JsonElement created = await (await client.PostAsJsonAsync("/api/jobs/local", new { path = folder })).Content.ReadFromJsonAsync<JsonElement>();
+        string id = created.GetProperty("id").GetString()!;
+        JsonElement ready = await WaitFor(client, id, "ready");
+
+        // The scan says which images the structure set was drawn on.
+        JsonElement rsRow = ready.GetProperty("scan").GetProperty("series").EnumerateArray().Single(s => s.GetProperty("uid").GetString() == rsUid);
+        Assert.True(rsRow.GetProperty("structureSet").GetBoolean());
+        Assert.Equal(ctUid, rsRow.GetProperty("follows").EnumerateArray().Single().GetString());
+
+        object Request(bool keep, params (string Tag, string Value)[] edits) => new
+        {
+            frameOfReference = true,
+            seriesUid = true,
+            sopUid = true,
+            modalities = new[] { "CT" },
+            keepCtLinked = false,
+            keepPetCtLinked = false,
+            seriesUids = (string[]?)null,
+            keepStructureSetsLinked = keep,
+            tagEdits = edits.Select(e => new { tag = e.Tag, value = e.Value }),
+        };
+        async Task<JsonElement> Preview(object request) =>
+            await (await client.PostAsJsonAsync($"/api/jobs/{id}/preview", request)).Content.ReadFromJsonAsync<JsonElement>();
+
+        // Off: only the CT is planned and the preview warns that the structure set is left behind.
+        JsonElement off = await Preview(Request(keep: false));
+        Assert.Equal(1, off.GetProperty("seriesCount").GetInt32());
+        Assert.Equal("leftBehind", off.GetProperty("series").GetProperty(rsUid).GetProperty("structureSet").GetString());
+
+        // On, with one bad value: the error comes back against that edit and the run is refused.
+        object bad = Request(keep: true, ("PatientID", "ANON001"), ("StudyDate", "tomorrow"));
+        JsonElement invalid = await Preview(bad);
+        Assert.Equal(JsonValueKind.Null, invalid.GetProperty("tagErrors")[0].ValueKind);
+        Assert.Contains("StudyDate", invalid.GetProperty("tagErrors")[1].GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/jobs/{id}/run", bad)).StatusCode);
+
+        object good = Request(keep: true, ("PatientID", "ANON001"), ("StudyDate", "20300101"));
+        JsonElement preview = await Preview(good);
+        Assert.Equal(2, preview.GetProperty("seriesCount").GetInt32());
+        Assert.Equal(4, preview.GetProperty("fileCount").GetInt32());
+        Assert.Equal("follows", preview.GetProperty("series").GetProperty(rsUid).GetProperty("structureSet").GetString());
+        Assert.Equal(
+            preview.GetProperty("series").GetProperty(ctUid).GetProperty("frame").GetInt32(),
+            preview.GetProperty("series").GetProperty(rsUid).GetProperty("frame").GetInt32());
+
+        // What the tags hold today, for the "old -> new" preview.
+        JsonElement values = await (await client.PostAsJsonAsync($"/api/jobs/{id}/tag-values", new { tags = new[] { "PatientID", "AccessionNumber" } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("SYN-001", values.GetProperty(ctUid)[0].GetProperty("value").GetString());
+        Assert.Equal(JsonValueKind.Null, values.GetProperty(ctUid)[1].GetProperty("value").ValueKind);
+
+        Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync($"/api/jobs/{id}/run", good)).StatusCode);
+        JsonElement done = await WaitFor(client, id, "done");
+        Assert.Equal(4, done.GetProperty("result").GetProperty("filesChanged").GetInt32());
+        Assert.Equal(0, done.GetProperty("result").GetProperty("failureCount").GetInt32());
+
+        ScanResult after = DicomScanner.Scan(folder);
+        DicomSeriesInfo ct = after.Series.Single(s => s.Modality == "CT"), rs = after.Series.Single(s => s.Modality == "RTSTRUCT");
+        Assert.NotEqual(ctUid, ct.SeriesInstanceUid);
+        Assert.Equal(rsUid, rs.SeriesInstanceUid);
+        Assert.Equal([ct.SeriesInstanceUid], rs.ReferencedSeriesInstanceUids);
+        Assert.Equal([ct.FrameOfReferenceUid], rs.ReferencedFrameOfReferenceUids);
+        Assert.All(after.Series, s =>
+        {
+            Assert.Equal("ANON001", s.PatientId);
+            Assert.Equal("20300101", s.StudyDate);
+        });
+
+        string[] report = (await client.GetStringAsync($"/api/jobs/{id}/report.csv")).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(UidReport.Header, report[0]);
+        Assert.Equal(3, report.Length);
+        Assert.Contains(report, line => line.StartsWith("RTSTRUCT,") && line.Contains(ctUid) && line.EndsWith("PatientID=ANON001; StudyDate=20300101"));
+        Assert.DoesNotContain("SYN-001", string.Join('\n', report));   // old patient identifiers never reach the report
+    }
+
     public void Dispose()
     {
         foreach (IDisposable disposable in _disposables)

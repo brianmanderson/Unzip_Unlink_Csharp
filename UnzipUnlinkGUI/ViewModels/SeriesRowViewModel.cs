@@ -15,6 +15,7 @@ public sealed class SeriesRowViewModel : ObservableObject
     private bool _isIncluded;
     private bool _canToggle;
     private string _note = "";
+    private string _changes = "";
     private LinkBadge _firstBadge = LinkBadge.None;
     private LinkBadge _secondBadge = LinkBadge.None;
 
@@ -82,6 +83,24 @@ public sealed class SeriesRowViewModel : ObservableObject
     }
 
     public string NoteSuffix => _note.Length > 0 ? $"  ·  {_note}" : "";
+
+    /// <summary>The tag edits this series will get, one "Keyword: old → new" per line ("" when there are none).</summary>
+    public string Changes
+    {
+        get => _changes;
+        internal set
+        {
+            if (Set(ref _changes, value))
+            {
+                OnPropertyChanged(nameof(HasChanges));
+                OnPropertyChanged(nameof(ChangesInline));
+            }
+        }
+    }
+
+    public bool HasChanges => _changes.Length > 0;
+    /// <summary>The same edits on one line, for the grid cell.</summary>
+    public string ChangesInline => _changes.ReplaceLineEndings("  ·  ");
 
     public LinkBadge FirstBadge
     {
@@ -162,3 +181,68 @@ public sealed class ModalityToggleViewModel : ObservableObject
 }
 
 public sealed record FailureViewModel(string FileName, string Path, string Error);
+
+/// <summary>One "set this tag to this value" row under "Change other tags".</summary>
+public sealed class TagEditViewModel : ObservableObject
+{
+    private readonly Action _changed;
+    private string _value = "";
+    private string _error = "";
+    private string _now = "";
+
+    public TagEditViewModel(EditableTag tag, Action changed, Action<TagEditViewModel> remove)
+    {
+        Tag = tag;
+        _changed = changed;
+        RemoveCommand = new RelayCommand(() => remove(this));
+    }
+
+    public EditableTag Tag { get; }
+    public string Keyword => Tag.Keyword;
+    public string TagNumber => Tag.Tag;
+    public string Name => Tag.Name;
+    public System.Windows.Input.ICommand RemoveCommand { get; }
+
+    /// <summary>The new value; empty means "clear the tag".</summary>
+    public string Value
+    {
+        get => _value;
+        set
+        {
+            if (Set(ref _value, value ?? ""))
+            {
+                _changed();
+            }
+        }
+    }
+
+    /// <summary>Why the value cannot be used ("" when it can).</summary>
+    public string Error
+    {
+        get => _error;
+        internal set
+        {
+            if (Set(ref _error, value))
+            {
+                OnPropertyChanged(nameof(HasError));
+            }
+        }
+    }
+
+    public bool HasError => _error.Length > 0;
+
+    /// <summary>What the tag holds today across the selected series, e.g. "Now: DEMO-0001".</summary>
+    public string Now
+    {
+        get => _now;
+        internal set
+        {
+            if (Set(ref _now, value))
+            {
+                OnPropertyChanged(nameof(HasNow));
+            }
+        }
+    }
+
+    public bool HasNow => _now.Length > 0;
+}
