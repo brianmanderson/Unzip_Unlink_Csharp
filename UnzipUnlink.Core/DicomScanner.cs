@@ -31,7 +31,7 @@ public static class DicomScanner
         int done = 0;
         var reportGate = new ProgressGate();
 
-        Parallel.ForEach(files, ParallelSettings.For(cancellationToken), path =>
+        ParallelSettings.ForEach(files, root, cancellationToken, path =>
         {
             try
             {
@@ -309,12 +309,90 @@ public sealed class ScanBuilder
 
 internal static class ParallelSettings
 {
-    /// <summary>Capped so a study of very large multi-frame files cannot exhaust memory.</summary>
-    public static ParallelOptions For(CancellationToken cancellationToken) => new()
+    /// <summary>
+    /// How many files to work on at once. On a local disk the work is CPU and memory bound, so it is capped at 8
+    /// (a study of very large multi-frame files must not exhaust memory). On a network share almost all the time
+    /// is spent waiting for the server, so many more files are kept in flight to hide that latency.
+    /// </summary>
+    public static void ForEach<T>(IReadOnlyList<T> items, string? path, CancellationToken cancellationToken, Action<T> body)
     {
-        MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8),
-        CancellationToken = cancellationToken,
-    };
+        bool network = path is not null && StorageInfo.IsNetworkPath(path);
+        ForEach(items, DegreeFor(network), dedicatedThreads: network, cancellationToken, body);
+    }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> for every item, <paramref name="degree"/> at a time. Throws
+    /// <see cref="OperationCanceledException"/> when cancelled; items not yet started are then skipped.
+    /// With <paramref name="dedicatedThreads"/> the work runs on its own threads instead of the thread pool:
+    /// the pool only adds a thread or two per second when its workers block, so blocking network I/O would
+    /// take most of a minute to reach the intended number of files in flight.
+    /// </summary>
+    internal static void ForEach<T>(IReadOnlyList<T> items, int degree, bool dedicatedThreads, CancellationToken cancellationToken, Action<T> body)
+    {
+        if (!dedicatedThreads)
+        {
+            Parallel.ForEach(items, new ParallelOptions { MaxDegreeOfParallelism = degree, CancellationToken = cancellationToken }, body);
+            return;
+        }
+        int next = -1;
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        void Work()
+        {
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested && Volatile.Read(ref failure) is null)
+                {
+                    int index = Interlocked.Increment(ref next);
+                    if (index >= items.Count)
+                    {
+                        return;
+                    }
+                    body(items[index]);
+                }
+            }
+            catch (Exception ex)
+            {
+                Interlocked.CompareExchange(ref failure, System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex), null);
+            }
+        }
+        var threads = new List<Thread>();
+        for (int i = 1; i < Math.Min(degree, items.Count); i++)
+        {
+            var thread = new Thread(Work) { IsBackground = true, Name = "UnzipUnlink network I/O" };
+            thread.Start();
+            threads.Add(thread);
+        }
+        Work();   // the calling thread is one of the workers
+        threads.ForEach(t => t.Join());
+        failure?.Throw();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    internal static int DegreeFor(bool network) => network
+        ? Math.Clamp(Environment.ProcessorCount * 4, 16, 32)
+        : Math.Clamp(Environment.ProcessorCount, 1, 8);
+}
+
+/// <summary>Facts about where files live that change how they are best read and written.</summary>
+public static class StorageInfo
+{
+    /// <summary>True for a UNC path (\\server\share\...) or a drive letter mapped to a network share.</summary>
+    public static bool IsNetworkPath(string path)
+    {
+        try
+        {
+            if (path.StartsWith(@"\\", StringComparison.Ordinal) && !path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            {
+                return true;
+            }
+            string? root = Path.GetPathRoot(Path.GetFullPath(path));
+            return !string.IsNullOrEmpty(root) && new DriveInfo(root).DriveType == DriveType.Network;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 }
 
 /// <summary>Throttles progress callbacks to roughly 200 updates per operation.</summary>
