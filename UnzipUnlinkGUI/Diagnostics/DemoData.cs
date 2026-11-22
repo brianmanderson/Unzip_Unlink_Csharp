@@ -20,7 +20,8 @@ public static class DemoData
         var series = new List<DicomSeriesInfo>
         {
             Series(1, "CT", "2", "Planning CT 2.5 mm", planningFrame, 184),
-            Series(2, "RTSTRUCT", "1", "Structures", "", 1),
+            // Drawn on the planning CT: shown in its link group, and it follows the CT when that is unlinked.
+            StructureSet(2, "1", "Structures", planningFrame, drawnOn: 1),
             Series(3, "CT", "401", "4D CT phase 0%", fourDFrame, 152),
             Series(4, "CT", "402", "4D CT phase 25%", fourDFrame, 152),
             Series(5, "CT", "403", "4D CT phase 50%", fourDFrame, 152),
@@ -41,9 +42,27 @@ public static class DemoData
         };
     }
 
+    private static DicomSeriesInfo StructureSet(int index, string number, string description, string frame, int drawnOn) => new()
+    {
+        SeriesInstanceUid = SeriesUid(index),
+        Modality = "RTSTRUCT",
+        SeriesNumber = number,
+        SeriesDescription = description,
+        FrameOfReferenceUid = frame,
+        DistinctFrameOfReferenceCount = 0,
+        ReferencedFrameOfReferenceUids = [frame],
+        ReferencedSeriesInstanceUids = [SeriesUid(drawnOn)],
+        StudyInstanceUid = "1.2.826.0.1.3680043.10.3.1",
+        PatientId = "EXAMPLE",
+        PatientName = "Example^Patient",
+        Files = [Path.Combine(DisplayPath, $"series{index:00}", "0001.dcm")],
+    };
+
+    private static string SeriesUid(int index) => $"1.2.826.0.1.3680043.10.2.{index}";
+
     private static DicomSeriesInfo Series(int index, string modality, string number, string description, string frame, int images) => new()
     {
-        SeriesInstanceUid = $"1.2.826.0.1.3680043.10.2.{index}",
+        SeriesInstanceUid = SeriesUid(index),
         Modality = modality,
         SeriesNumber = number,
         SeriesDescription = description,

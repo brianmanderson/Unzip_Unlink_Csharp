@@ -27,10 +27,19 @@ public sealed record ChangeRequest(
     bool KeepCtLinked,
     bool KeepPetCtLinked,
     string[]? SeriesUids,
-    bool WorkOnCopy = false)
+    bool WorkOnCopy = false,
+    bool KeepStructureSetsLinked = false,
+    TagEditRequest[]? TagEdits = null)
 {
-    public UnlinkOptions ToOptions() => new()
+    /// <summary>One entry per tag edit, in order: null when it is fine, otherwise what is wrong with it.</summary>
+    public IReadOnlyList<string?> TagErrors() =>
+        DicomTagCatalog.Validate((TagEdits ?? []).Select(e => new TagEdit(e.Tag ?? "", e.Value ?? "")));
+
+    /// <param name="withTagEdits">False to plan the UID changes alone, for a preview while a tag edit is still invalid.</param>
+    public UnlinkOptions ToOptions(bool withTagEdits = true) => new()
     {
+        KeepStructureSetsLinked = KeepStructureSetsLinked,
+        TagEdits = withTagEdits ? (TagEdits ?? []).Select(e => new TagEdit(e.Tag ?? "", e.Value ?? "")).ToList() : [],
         NewFrameOfReferenceUid = FrameOfReference,
         NewSeriesInstanceUid = SeriesUid,
         NewSopInstanceUid = SopUid,
@@ -40,6 +49,9 @@ public sealed record ChangeRequest(
         SeriesInstanceUids = SeriesUids is null ? null : new HashSet<string>(SeriesUids, StringComparer.Ordinal),
     };
 }
+
+/// <summary>"Set this tag (keyword or number) to this value" as the browser sends it.</summary>
+public sealed record TagEditRequest(string? Tag, string? Value);
 
 /// <summary>One unit of work: a study that was uploaded, or a folder on the machine the server runs on.</summary>
 public sealed class Job

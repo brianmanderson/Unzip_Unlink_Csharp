@@ -4,13 +4,14 @@ using UnzipUnlink.Core;
 using UnzipUnlink.BrowserCheck;
 
 // Commands used by browser-check.mjs:
-//   verify    <original DemoStudy folder> <output .zip or folder>   checks a browser result against the native engine
+//   verify    <original DemoStudy folder> <output .zip or folder> [Keyword=value ...]
+//                                                                  checks a browser result against the native engine
 //   reference <input> <output> <frame> <series> <sop>              native path-based rewrite ("" = leave alone)
 //   generate  <folder> <series> <slices>                           synthetic CT study, ~150 KB per file
 //   fakezip   <output.zip> <claimedBytes>                          tiny .zip whose directory claims a huge study
 return args.FirstOrDefault() switch
 {
-    "verify" => Verifier.Run(args[1], args[2]),
+    "verify" => Verifier.Run(args[1], args[2], args[3..]),
     "reference" => Reference(args[1], args[2], args[3], args[4], args[5]),
     "generate" => Generate(args[1], int.Parse(args[2]), int.Parse(args[3])),
     "fakezip" => FakeZip(args[1], long.Parse(args[2])),

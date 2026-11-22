@@ -18,6 +18,7 @@ namespace UnzipUnlinkGUI.Diagnostics;
 /// UnzipUnlinkGUI.exe --screenshot out.png [--source folder-or-zip | --demo] [--theme light|dark]
 ///                    [--run] [--report out.json] [--state confirm|about|dragover] [--mask-path text]
 ///                    [--series-uid] [--no-frame] [--no-sop] [--keep-ct] [--keep-petct] [--no-keep]
+///                    [--tag Keyword=value]...
 ///                    [--shot-loading a.png] [--shot-running b.png] [--scale 1.5]
 ///                    [--cancel-loading] [--cancel-running] [--size 900x640] [--state selected]
 /// </code>
@@ -41,6 +42,8 @@ public sealed class HeadlessOptions
     public bool NoSop { get; private set; }
     public bool KeepCt { get; private set; }
     public bool KeepPetCt { get; private set; }
+    /// <summary>"Keyword=value" tag edits to add before the screenshot or run.</summary>
+    public List<string> Tags { get; } = [];
     public bool NoKeep { get; private set; }
     public bool CancelLoading { get; private set; }
     public bool CancelRunning { get; private set; }
@@ -77,6 +80,7 @@ public sealed class HeadlessOptions
                 case "--keep-ct": options.KeepCt = true; break;
                 case "--keep-petct": options.KeepPetCt = true; break;
                 case "--no-keep": options.NoKeep = true; break;
+                case "--tag": options.Tags.Add(Next()); break;
                 case "--cancel-loading": options.CancelLoading = true; break;
                 case "--cancel-running": options.CancelRunning = true; break;
                 case "--size":
@@ -161,7 +165,15 @@ public static class HeadlessRunner
             if (options.NoFrame) { viewModel.ChangeFrame = false; }
             if (options.SeriesUid) { viewModel.ChangeSeries = true; }
             if (options.NoSop) { viewModel.ChangeSop = false; }
-            if (options.NoKeep) { viewModel.KeepCt = false; viewModel.KeepPetCt = false; }
+            if (options.NoKeep) { viewModel.KeepCt = false; viewModel.KeepPetCt = false; viewModel.KeepStructures = false; }
+            foreach (string tag in options.Tags)
+            {
+                string[] parts = tag.Split('=', 2);
+                if (UnzipUnlink.Core.DicomTagCatalog.TryResolve(parts[0], out _, out UnzipUnlink.Core.EditableTag? info))
+                {
+                    viewModel.AddTagEdit(info, parts.Length > 1 ? parts[1] : "");
+                }
+            }
             if (options.KeepCt) { viewModel.KeepCt = true; }
             if (options.KeepPetCt) { viewModel.KeepPetCt = true; }
 
@@ -170,6 +182,7 @@ public static class HeadlessRunner
             report["runButton"] = viewModel.RunButtonText;
             report["keepCt"] = viewModel.KeepCt;
             report["keepPetCt"] = viewModel.KeepPetCt;
+            report["keepStructures"] = viewModel.KeepStructures;
             report["canRun"] = viewModel.CanRun;
             report["rowsBeforeRun"] = DescribeRows(viewModel);
 

@@ -91,9 +91,25 @@ public static class DicomScanner
             {
                 return HeaderReadResult.Unreadable("No Series Instance UID");
             }
+            string modality = Get(ds, DicomTag.Modality).ToUpperInvariant();
+            List<string> referencedFrames = [], referencedSeries = [];
+            if (modality == UnlinkOptions.StructureSetModality)
+            {
+                // What a structure set points at sits in group 3006, past where the read above stopped.
+                if (fileLength > stream.Length)
+                {
+                    // Only the start of the file was supplied and the references may lie beyond it.
+                    return HeaderReadResult.Unreadable("The whole file is needed to read a structure set's references.");
+                }
+                stream.Position = 0;
+                DicomDataset full = DicomFile.Open(stream, DicomEncoding.Default,
+                    state => state.SequenceDepth == 0 && (state.Tag.Group > 0x3006 || (state.Tag.Group == 0x3006 && state.Tag.Element > 0x0010)),
+                    FileReadOption.SkipLargeTags).Dataset;
+                ReadStructureSetReferences(full, referencedFrames, referencedSeries);
+            }
             return new HeaderReadResult(HeaderReadKind.Image, new DicomFileHeader(
                 seriesUid,
-                Get(ds, DicomTag.Modality).ToUpperInvariant(),
+                modality,
                 Get(ds, DicomTag.FrameOfReferenceUID),
                 Get(ds, DicomTag.StudyInstanceUID),
                 Get(ds, DicomTag.PatientName),
@@ -103,11 +119,44 @@ public static class DicomScanner
                 Get(ds, DicomTag.SeriesDescription),
                 Get(ds, DicomTag.SeriesNumber),
                 GetInt(ds, DicomTag.InstanceNumber),
-                fileLength), null);
+                fileLength,
+                Get(ds, DicomTag.SOPInstanceUID),
+                string.Join('\\', referencedFrames),
+                string.Join('\\', referencedSeries)), null);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return HeaderReadResult.Unreadable(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Collects the frames of reference and image series an RT Structure Set refers to
+    /// (Referenced Frame of Reference Sequence → RT Referenced Study → RT Referenced Series).
+    /// </summary>
+    private static void ReadStructureSetReferences(DicomDataset ds, List<string> frames, List<string> series)
+    {
+        foreach (DicomDataset frameItem in Items(ds, DicomTag.ReferencedFrameOfReferenceSequence))
+        {
+            AddDistinct(frames, Get(frameItem, DicomTag.FrameOfReferenceUID));
+            foreach (DicomDataset study in Items(frameItem, DicomTag.RTReferencedStudySequence))
+            {
+                foreach (DicomDataset item in Items(study, DicomTag.RTReferencedSeriesSequence))
+                {
+                    AddDistinct(series, Get(item, DicomTag.SeriesInstanceUID));
+                }
+            }
+        }
+    }
+
+    internal static IEnumerable<DicomDataset> Items(DicomDataset ds, DicomTag sequence) =>
+        ds.TryGetSequence(sequence, out DicomSequence found) ? found.Items : [];
+
+    private static void AddDistinct(List<string> list, string value)
+    {
+        if (value.Length > 0 && !list.Contains(value))
+        {
+            list.Add(value);
         }
     }
 
@@ -136,11 +185,13 @@ public static class DicomScanner
             .ThenBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
         DicomFileHeader first = ordered[0].Header;
+        List<string> referencedFrames = SplitUids(ordered.Select(h => h.Header.ReferencedFrameOfReferenceUids));
         return new DicomSeriesInfo
         {
             SeriesInstanceUid = group.Key,
             Modality = first.Modality,
-            FrameOfReferenceUid = first.FrameOfReferenceUid,
+            // A structure set carries no frame of its own; show it with the frame it was drawn in.
+            FrameOfReferenceUid = first.FrameOfReferenceUid.Length > 0 ? first.FrameOfReferenceUid : referencedFrames.FirstOrDefault() ?? "",
             DistinctFrameOfReferenceCount = ordered.Select(h => h.Header.FrameOfReferenceUid).Distinct(StringComparer.Ordinal).Count(),
             StudyInstanceUid = first.StudyInstanceUid,
             PatientName = first.PatientName,
@@ -151,8 +202,14 @@ public static class DicomScanner
             SeriesNumber = first.SeriesNumber,
             Files = ordered.Select(h => h.Key).ToList(),
             TotalBytes = ordered.Sum(h => h.Header.Length),
+            SopInstanceUids = ordered.Select(h => h.Header.SopInstanceUid).ToList(),
+            ReferencedFrameOfReferenceUids = referencedFrames,
+            ReferencedSeriesInstanceUids = SplitUids(ordered.Select(h => h.Header.ReferencedSeriesInstanceUids)),
         };
     }
+
+    private static List<string> SplitUids(IEnumerable<string> joined) =>
+        joined.SelectMany(j => j.Split('\\', StringSplitOptions.RemoveEmptyEntries)).Distinct(StringComparer.Ordinal).ToList();
 
     internal static int SeriesNumberSortKey(string seriesNumber) =>
         int.TryParse(seriesNumber, out int n) ? n : int.MaxValue;
@@ -180,7 +237,11 @@ public enum HeaderReadKind { Image, NotDicom, DicomDir, Unreadable }
 public sealed record DicomFileHeader(
     string SeriesInstanceUid, string Modality, string FrameOfReferenceUid, string StudyInstanceUid,
     string PatientName, string PatientId, string StudyDescription, string StudyDate,
-    string SeriesDescription, string SeriesNumber, int? InstanceNumber, long Length);
+    string SeriesDescription, string SeriesNumber, int? InstanceNumber, long Length,
+    string SopInstanceUid = "",
+    // Structure sets only. Several UIDs are joined with a backslash, as DICOM does, so the record keeps value equality.
+    string ReferencedFrameOfReferenceUids = "",
+    string ReferencedSeriesInstanceUids = "");
 
 public sealed record HeaderReadResult(HeaderReadKind Kind, DicomFileHeader? Header, string? Error)
 {

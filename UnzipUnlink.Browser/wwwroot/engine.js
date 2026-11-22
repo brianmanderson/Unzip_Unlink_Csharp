@@ -46,6 +46,10 @@ export function createEngine() {
     /** output: "zip" | "inplace" | "copy" (copy needs a destination directory handle). */
     run: (request, output, destination, progress) => call("run", { request, output, destination }, progress),
     report: () => call("report"),
+    /** Every DICOM tag that can be overwritten: [{ keyword, name, tag, vr }]. */
+    tags: async () => { await ready; return call("tags"); },
+    /** What the given tags hold today, per series: { seriesUid: [{ value, varies }] } in the order of keywords. */
+    tagValues: (keywords) => call("tagValues", { keywords }),
     cancel: () => worker.postMessage({ op: "cancel" }),
   };
 }

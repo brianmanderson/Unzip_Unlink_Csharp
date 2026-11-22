@@ -347,13 +347,20 @@
                                     <DataGridTemplateColumn Header="Series" Width="*" IsReadOnly="True">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                           ToolTip="{Binding Description}" ToolTipService.ShowOnDisabled="True">
-                                                    <Run Text="{Binding Description, Mode=OneWay}" />
-                                                    <Run Text="{Binding NoteSuffix, Mode=OneWay}"
-                                                         FontStyle="Italic"
-                                                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                </TextBlock>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Description}" ToolTipService.ShowOnDisabled="True">
+                                                        <Run Text="{Binding Description, Mode=OneWay}" />
+                                                        <Run Text="{Binding NoteSuffix, Mode=OneWay}"
+                                                             FontStyle="Italic"
+                                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                    </TextBlock>
+                                                    <!-- Tag edits this series will get: "PatientID: old → new" -->
+                                                    <TextBlock Text="{Binding ChangesInline}" FontSize="11.5" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                               ToolTip="{Binding Changes}" ToolTipService.ShowOnDisabled="True"
+                                                               Visibility="{Binding HasChanges, Converter={StaticResource Show}}" />
+                                                </StackPanel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -519,6 +526,80 @@
                                                        Text="A PET and the CT it shares a frame of reference with stay registered to each other." />
                                         </StackPanel>
                                     </CheckBox>
+                                    <CheckBox IsChecked="{Binding KeepStructures}" IsEnabled="{Binding CanKeepStructures}"
+                                              VerticalContentAlignment="Top" ToolTipService.ShowOnDisabled="True"
+                                              ToolTip="A structure set points at its images by their IDs. With this on, a structure set drawn on a series you are changing is rewritten so that its frame of reference, series and image references follow that series to its new IDs. The structure set keeps its own IDs. Ticked for you when the scan finds a structure set together with its images; unavailable when there is none, because nothing would change.">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource OptionTitle}" Text="Structure sets with their images" />
+                                            <TextBlock Style="{StaticResource OptionHelp}" Text="{Binding KeepStructuresHelp}" />
+                                        </StackPanel>
+                                    </CheckBox>
+
+                                    <TextBlock Style="{StaticResource GroupTitle}" Text="Change other tags" Margin="0,8,0,2" />
+                                    <ItemsControl ItemsSource="{Binding TagEdits}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,2,0,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding Name}">
+                                                            <Run Text="{Binding Keyword, Mode=OneWay}" FontWeight="SemiBold" />
+                                                            <Run Text="{Binding TagNumber, Mode=OneWay}" FontSize="11.5"
+                                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                        </TextBlock>
+                                                        <Button Grid.Column="1" Style="{StaticResource LinkButton}" Content="Remove"
+                                                                Command="{Binding RemoveCommand}" FontSize="12"
+                                                                AutomationProperties.Name="Remove this tag change" />
+                                                    </Grid>
+                                                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" Margin="0,3,0,0"
+                                                             ToolTip="The new value. Leave it empty to clear the tag."
+                                                             AutomationProperties.Name="{Binding Keyword}" />
+                                                    <TextBlock Style="{StaticResource OptionHelp}" Text="{Binding Now}" Margin="0,2,0,0"
+                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Now}"
+                                                               Visibility="{Binding HasNow, Converter={StaticResource Show}}" />
+                                                    <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" Text="{Binding Error}"
+                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                                               Visibility="{Binding HasError, Converter={StaticResource Show}}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Grid>
+                                        <TextBox x:Name="TagSearchBox" Text="{Binding TagSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="Search for a DICOM tag to change"
+                                                 ToolTip="Type part of a tag's name, keyword or number, then pick it from the list.">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding AddFirstTagCommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+                                        <TextBlock Text="Search tags, e.g. PatientID" IsHitTestVisible="False" VerticalAlignment="Center"
+                                                   Margin="11,0,0,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   Visibility="{Binding ShowTagPlaceholder, Converter={StaticResource Show}}" />
+                                    </Grid>
+                                    <ListBox ItemsSource="{Binding TagResults}" SelectedItem="{Binding PickedTag, Mode=TwoWay}"
+                                             MaxHeight="190" Margin="0,4,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             AutomationProperties.Name="Matching tags"
+                                             Visibility="{Binding ShowTagResults, Converter={StaticResource Show}}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,1">
+                                                    <TextBlock Text="{Binding Keyword}" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontSize="11.5" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                        <Run Text="{Binding Tag, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Name, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock Style="{StaticResource OptionHelp}" Margin="0,4,0,0"
+                                               Text="No tag matches. IDs (UIDs), sequences and binary data cannot be changed here."
+                                               Visibility="{Binding ShowNoTagResults, Converter={StaticResource Show}}" />
+                                    <TextBlock Style="{StaticResource OptionHelp}" Margin="0,4,0,0"
+                                               Text="Pick a tag, then type its new value. It is written to every image of the ticked series, and to a structure set that follows them." />
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>

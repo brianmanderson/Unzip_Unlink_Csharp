@@ -24,7 +24,7 @@ let lastPlan = null;
 // ---- Messages ---------------------------------------------------------------------------------------
 
 const handlers = {
-  init, scan, preview, run, report,
+  init, scan, preview, run, report, tags, tagValues,
   diagnose: (args) => diagnose(args),
 };
 
@@ -243,7 +243,7 @@ async function run({ request, output, destination }) {
   const started = performance.now();
   const failures = [];
   const handled = new Set();
-  let filesDone = 0, filesChanged = 0, seriesDone = 0, cancelled = false, lastReport = 0;
+  let filesDone = 0, filesChanged = 0, seriesDone = 0, cancelled = false, lastReport = 0, unit = null;
 
   let zip = null, target = null, outputFolder = null;
   if (output === "zip") {
@@ -262,9 +262,11 @@ async function run({ request, output, destination }) {
   };
 
   for (let index = 0; index < plan.series.length; index++) {
-    // Like the native engine, cancelling stops between series: a series is rewritten completely or not at all.
-    if (cancelRequested) { cancelled = true; break; }
+    // Like the native engine, cancelling stops between units: a series is rewritten completely or not at all, and
+    // a structure set is never separated from the images it follows (they share a unit and sit next to each other).
     const series = plan.series[index];
+    if (cancelRequested && series.unit !== unit) { cancelled = true; break; }
+    unit = series.unit;
     for (const key of series.files) {
       const entry = study.byKey.get(key);
       handled.add(key);
@@ -333,6 +335,40 @@ async function copyUnchanged(entry, zip, target) {
   } else if (target) {
     await writeFileAt(target, entry.key, await entry.read());
   }
+}
+
+function tags() {
+  return JSON.parse(need().Tags());
+}
+
+/**
+ * What the given tags hold today in every series, from its first and last file (enough to say "this differs between
+ * images" without reading a whole study). Returns { seriesUid: [{ value, varies }] } in the order of keywords.
+ */
+async function tagValues({ keywords }) {
+  const e = need();
+  if (!study) throw new Error("Nothing has been opened.");
+  const tagsJson = JSON.stringify(keywords);
+  const read = async (key) => {
+    const entry = study.byKey.get(key);
+    if (!entry || entry.size > MAX_FILE_BYTES) return null;
+    try {
+      const partial = entry.size > HEADER_SLICE && entry.readStart !== entry.read;
+      let json = e.TagValues(partial ? await entry.readStart(HEADER_SLICE) : await entry.read(), tagsJson);
+      if (json === "" && partial) json = e.TagValues(await entry.read(), tagsJson);
+      return json === "" ? null : JSON.parse(json);
+    } catch {
+      return null;
+    }
+  };
+  const result = {};
+  for (const [uid, [first, last]] of Object.entries(JSON.parse(e.SampleFiles()))) {
+    const a = await read(first);
+    const b = last === first ? a : await read(last);
+    if (!a || !b) continue;   // unreadable: leave the series out rather than claim the tag is not set
+    result[uid] = a.map((value, i) => ({ value, varies: value !== b[i] }));
+  }
+  return result;
 }
 
 function report() {

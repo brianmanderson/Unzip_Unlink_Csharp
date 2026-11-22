@@ -16,6 +16,9 @@ const state = {
   previewTimer: null,
   browsePath: "",
   browseSelection: null,
+  tags: null,           // every editable DICOM tag, loaded on first use
+  tagValues: {},        // keyword -> { seriesUid: { value, varies } }: what each tag holds today
+  tagErrors: [],
 };
 
 // ---- Server calls -----------------------------------------------------------------------------
@@ -165,6 +168,8 @@ function discardJob() {
   state.job = null;
   state.preview = null;
   state.options = null;
+  state.tagValues = {};
+  state.tagErrors = [];
 }
 
 function startOver() {
@@ -411,6 +416,11 @@ async function poll() {
   state.pollTimer = setTimeout(poll, POLL_MS);
 }
 
+// ---- Tag list and current values (the engine is the server) -----------------------------------
+
+const loadTags = () => api("GET", "/api/tags");
+const fetchTagValues = (keywords) => api("POST", `/api/jobs/${state.jobId}/tag-values`, { tags: keywords });
+
 // ---- Review -----------------------------------------------------------------------------------
 
 function supportedCounts(scan) {
@@ -444,6 +454,9 @@ function renderReview() {
       // Sensible starting point: if the data visibly contains a 4DCT or PET/CT, keep it together.
       keepCt: ctGroups.length > 0,
       keepPet: petGroups.length > 0,
+      // ...and if a structure set was drawn on images that are here, let it follow them.
+      keepStruct: linkedStructureSets(scan).length > 0,
+      tagEdits: [],         // [{ keyword, name, tag, vr, value }]
       excluded: new Set(),
       workOnCopy: false,
     };
@@ -476,10 +489,14 @@ function renderReview() {
   if (scan.series.some((s) => s.mixedFrames)) {
     notice("warn", "At least one series contains images with different frames of reference. After unlinking, all images of a series share one new frame of reference.");
   }
-  const others = scan.series.filter((s) => !s.supported);
+  const followers = linkedStructureSets(scan);
+  const others = scan.series.filter((s) => !s.supported && !followers.includes(s));
   if (others.length > 0 && others.length < scan.series.length) {
     const kinds = [...new Set(others.map((s) => s.modality || "unknown"))].join(", ");
-    notice("info", `${plural(others.length, "other object")} (${kinds}) ${others.length === 1 ? "is" : "are"} left unchanged. Anything that refers to an image by its identifiers - a structure set, plan, dose or registration - will keep pointing at the original, not at the unlinked copy.`);
+    notice("info", `${plural(others.length, "other object")} (${kinds}) ${others.length === 1 ? "is" : "are"} left unchanged. Anything that refers to an image by its identifiers - a plan, dose or registration, or a structure set whose images are not here - will keep pointing at the original, not at the unlinked copy.`);
+  }
+  if (followers.length > 0) {
+    notice("info", `${plural(followers.length, "structure set")} here ${followers.length === 1 ? "was" : "were"} drawn on images in this study. With "Structure sets with their images" on, ${followers.length === 1 ? "it follows" : "they follow"} those images to their new identifiers.`);
   }
   if (scan.series.length > 0 && scan.series.every((s) => !s.supported)) {
     notice("warn", "There are no CT, MR or PET series here, so there is nothing this tool can change.");
@@ -508,6 +525,7 @@ function renderReview() {
   }
 
   renderRows();
+  renderTagEdits();
   syncOptions();
   show("review");
 }
@@ -534,7 +552,7 @@ function renderRows() {
       el("td", { class: "col-check" }, checkbox),
       el("td", {}, el("span", { class: `chip ${cls}`, text: MODALITY_LABEL[s.modality] || s.modality || "?" })),
       el("td", { class: "num", text: s.number }),
-      el("td", {}, el("div", { class: "desc", text: s.description || "(no description)", title: s.description })),
+      el("td", {}, el("div", { class: "desc", text: s.description || "(no description)", title: s.description }), el("div", { class: "edits" })),
       el("td", { class: "num", text: number(s.files) }),
       el("td", { class: "num", text: bytes(s.bytes) }),
       el("td", { class: "now" }),
@@ -588,6 +606,11 @@ function linkBadge(frame, groups) {
   return el("span", { class: `link-badge g${group.index % 8}`, text: letter, title: `Shares a frame of reference with ${plural(group.size - 1, "other series", "other series")}` });
 }
 
+/** Structure sets that were drawn on image series present in this study. */
+function linkedStructureSets(scan) {
+  return scan.series.filter((s) => s.structureSet && s.follows.length > 0);
+}
+
 function isIncluded(series) {
   return series.supported && state.options.modalities.has(series.modality) && !state.options.excluded.has(series.uid);
 }
@@ -602,6 +625,8 @@ function changeRequest() {
     keepCtLinked: o.keepCt && o.frame && o.modalities.has("CT"),
     keepPetCtLinked: o.keepPet && o.frame && o.modalities.has("CT") && o.modalities.has("PT"),
     seriesUids: scan.series.filter(isIncluded).map((s) => s.uid),
+    keepStructureSetsLinked: o.keepStruct && linkedStructureSets(scan).length > 0,
+    tagEdits: o.tagEdits.map((e) => ({ tag: e.keyword, value: e.value })),
     workOnCopy: state.job.kind === "local" && o.workOnCopy,
   };
 }
@@ -629,7 +654,14 @@ function syncOptions() {
   $("keepPetHint").textContent = petGroups.length > 0
     ? `Found ${plural(petGroups.length, "PET/CT set")} sharing a frame of reference. Keep each PET registered to its CT.`
     : "A PET and the CT it shares a frame of reference with stay registered to each other. None found in this study.";
-  $("keepCard").hidden = !("CT" in supportedCounts(scan)) || supportedCounts(scan).CT === 0;
+  const structureSets = linkedStructureSets(scan);
+  setSwitch("optKeepStruct", o.keepStruct && structureSets.length > 0, structureSets.length > 0);
+  $("optKeepStruct").closest(".switch-row").title = structureSets.length > 0 ? ""
+    : "Nothing would change: no structure set in this study refers to images that are also here.";
+  $("keepStructHint").textContent = structureSets.length > 0
+    ? `Found ${plural(structureSets.length, "structure set")} drawn on images in this study. Its references follow those images to their new identifiers, so the contours stay attached.`
+    : "A structure set is repointed at the new identifiers of the images it was drawn on. None found in this study.";
+  $("keepCard").hidden = supportedCounts(scan).CT === 0 && structureSets.length === 0;
 
   $("outInPlace").checked = !o.workOnCopy;
   $("outCopy").checked = o.workOnCopy;
@@ -641,7 +673,8 @@ function syncOptions() {
     const modalityOn = series.supported && o.modalities.has(series.modality);
     checkbox.disabled = !modalityOn;
     checkbox.checked = isIncluded(series);
-    checkbox.title = !series.supported ? "Only CT, MR and PET are modified" : modalityOn ? "" : `Turn on ${MODALITY_LABEL[series.modality]} under "Which images" to include this series`;
+    checkbox.title = series.structureSet ? "A structure set is not selected on its own: it follows the images it was drawn on (see Keep together)"
+      : !series.supported ? "Only CT, MR and PET are modified" : modalityOn ? "" : `Turn on ${MODALITY_LABEL[series.modality]} under "Which images" to include this series`;
     row.classList.toggle("off", !checkbox.checked);
     if (modalityOn) { selectable++; if (checkbox.checked) included++; }
   }
@@ -682,30 +715,190 @@ async function refreshPreview() {
     const after = preview.series[series.uid];
     row.querySelector(".now").replaceChildren(linkBadge(series.frame, nowGroups));
     const cell = row.querySelector(".after");
-    if (after.selected) {
-      const parts = [el("span", { class: "pill new", text: "new IDs" })];
-      if (state.options.frame) parts.unshift(linkBadge(after.frame, afterGroups), document.createTextNode(" "));
+    const o = state.options;
+    const newUids = o.frame || o.series || o.sop;
+    if (series.structureSet) {
+      // A structure set keeps its own identifiers; what changes is where its references point.
+      const [text, kind, title] = {
+        follows: ["follows its images", "new", "Rewritten so that every reference points at the new identifiers of the images it was drawn on."],
+        leftBehind: ["left behind", "warn", "Its images get new identifiers, but this structure set will keep pointing at the originals. Turn on \"Structure sets with their images\" to keep them together."],
+        imagesNotSelected: ["unchanged", "same", "The images it was drawn on are not being changed, so nothing it points at moves."],
+        imagesNotFound: ["unchanged", "same", "The images it was drawn on are not in this study."],
+      }[after.structureSet] ?? ["unchanged", "same", ""];
+      cell.replaceChildren(linkBadge(after.frame, afterGroups), document.createTextNode(" "), el("span", { class: `pill ${kind}`, text, title }));
+    } else if (after.selected) {
+      const parts = [el("span", { class: "pill new", text: newUids ? "new IDs" : "tags changed" })];
+      if (o.frame) parts.unshift(linkBadge(after.frame, afterGroups), document.createTextNode(" "));
       cell.replaceChildren(...parts);
     } else {
       cell.replaceChildren(linkBadge(after.frame, afterGroups), document.createTextNode(" "), el("span", { class: "pill same", text: "unchanged" }));
     }
   }
 
+  state.tagErrors = preview.tagErrors ?? [];
+  renderTagNotes();
+
   const o = state.options;
   const button = $("runButton"), summary = $("runSummary");
-  const nothingToChange = !o.frame && !o.series && !o.sop;
-  button.disabled = preview.seriesCount === 0;
+  const tagProblem = state.tagErrors.some(Boolean);
+  const nothingToChange = !o.frame && !o.series && !o.sop && o.tagEdits.length === 0;
+  button.disabled = preview.seriesCount === 0 || tagProblem;
   button.textContent = preview.seriesCount === 0 ? "Unlink" : `Unlink ${plural(preview.seriesCount, "series", "series")}`;
-  if (preview.seriesCount === 0) {
-    summary.textContent = nothingToChange ? "Turn on at least one identifier under \"What to change\"."
+  if (tagProblem) {
+    summary.textContent = "Fix the tag value marked under \"Change other tags\" first.";
+  } else if (preview.seriesCount === 0) {
+    summary.textContent = nothingToChange ? "Turn on at least one identifier under \"What to change\", or add a tag to change."
       : o.modalities.size === 0 ? "Choose at least one image type under \"Which images\"."
       : "No series are selected.";
   } else {
     const what = [o.frame && "Frame of Reference", o.series && "Series Instance", o.sop && "SOP Instance"].filter(Boolean).join(", ");
+    const changes = [what && `New ${what} UIDs`, o.tagEdits.length > 0 && `${what ? "new" : "New"} values for ${plural(o.tagEdits.length, "tag")}`].filter(Boolean).join(" and ");
     const before = [...nowGroups.values()].reduce((n, g) => n + g.size, 0);
     const after = [...afterGroups.values()].reduce((n, g) => n + g.size, 0);
     const links = before === 0 && after === 0 ? "" : ` Linked series: ${before} now → ${after} after.`;
-    summary.textContent = `New ${what} UIDs for ${plural(preview.fileCount, "file")} in ${plural(preview.seriesCount, "series", "series")}.${links}`;
+    summary.textContent = `${changes} for ${plural(preview.fileCount, "file")} in ${plural(preview.seriesCount, "series", "series")}.${links}`;
+  }
+}
+
+// ---- Change other tags ------------------------------------------------------------------------
+
+/** Shown before anything is typed: the tags people most often need to overwrite. */
+const COMMON_TAGS = ["PatientID", "PatientName", "PatientBirthDate", "PatientSex", "AccessionNumber", "StudyID",
+  "StudyDescription", "SeriesDescription", "StudyDate", "InstitutionName", "ReferringPhysicianName"];
+
+const compactTag = (text) => text.replace(/[(),\s]/g, "").toUpperCase();
+
+/** Tags whose keyword, name or number contains the text; keywords that start with it come first. */
+function searchTags(text) {
+  const taken = new Set(state.options.tagEdits.map((e) => e.keyword));
+  const free = state.tags.filter((t) => !taken.has(t.keyword));
+  const filter = text.trim().toLowerCase();
+  if (!filter) {
+    return COMMON_TAGS.map((k) => free.find((t) => t.keyword === k)).filter(Boolean);
+  }
+  const number = /^[\s(),0-9a-f]+$/i.test(filter) ? compactTag(filter) : "";
+  const starts = (t) => (t.keyword.toLowerCase().startsWith(filter) ? 0 : 1);
+  return free
+    .filter((t) => t.keyword.toLowerCase().includes(filter) || t.name.toLowerCase().includes(filter) || (number && compactTag(t.tag).includes(number)))
+    .sort((a, b) => starts(a) - starts(b) || a.keyword.localeCompare(b.keyword))
+    .slice(0, 40);
+}
+
+async function showTagResults() {
+  const list = $("tagResults");
+  if (!state.tags) {
+    list.replaceChildren(el("li", { class: "empty", text: "Loading the tag list…" }));
+    list.hidden = false;
+    try {
+      state.tags = await loadTags();
+    } catch (error) {
+      list.hidden = true;
+      toast(error.message);
+      return;
+    }
+  }
+  if (!state.options || document.activeElement !== $("tagSearch")) { list.hidden = true; return; }
+  const found = searchTags($("tagSearch").value);
+  list.replaceChildren();
+  if (found.length === 0) {
+    list.append(el("li", { class: "empty", text: "No tag matches. Identifiers (UIDs), sequences and binary data cannot be changed here." }));
+  }
+  for (const tag of found) {
+    // mousedown, not click: the search box loses focus (and hides this list) before a click would land.
+    const button = el("button", { type: "button", onmousedown: (event) => { event.preventDefault(); addTagEdit(tag); } },
+      el("b", { text: tag.keyword }), el("small", { text: `${tag.tag} · ${tag.name}` }));
+    button.addEventListener("click", () => addTagEdit(tag));
+    list.append(el("li", {}, button));
+  }
+  list.hidden = false;
+}
+
+function addTagEdit(tag) {
+  const edits = state.options.tagEdits;
+  if (edits.some((e) => e.keyword === tag.keyword)) return;
+  edits.push({ ...tag, value: "" });
+  $("tagSearch").value = "";
+  $("tagResults").hidden = true;
+  renderTagEdits();
+  syncOptions();
+  loadTagValues();
+  $("tagEdits").lastElementChild?.querySelector("input")?.focus();
+}
+
+/** Rebuilds the rows only when a tag is added or removed, so typing a value never loses the caret. */
+function renderTagEdits() {
+  const box = $("tagEdits");
+  box.replaceChildren();
+  if (!state.options) return;
+  for (const edit of state.options.tagEdits) {
+    const input = el("input", {
+      type: "text", class: "input", placeholder: "New value (leave empty to clear the tag)", spellcheck: "false", autocomplete: "off",
+      "aria-label": `New value for ${edit.keyword}`,
+    });
+    input.value = edit.value;
+    input.addEventListener("input", () => { edit.value = input.value; syncOptions(); });
+    const row = el("div", { class: "tag-edit" },
+      el("div", { class: "tag-edit-head" },
+        el("span", {}, el("b", { text: edit.keyword }), el("small", { text: ` ${edit.tag}` })),
+        el("button", {
+          type: "button", class: "btn ghost icon-only small", "aria-label": `Do not change ${edit.keyword}`, title: "Remove", text: "×",
+          onclick: () => {
+            state.options.tagEdits = state.options.tagEdits.filter((e) => e !== edit);
+            renderTagEdits();
+            syncOptions();
+          },
+        })),
+      input,
+      el("small", { class: "tag-now" }),
+      el("small", { class: "tag-error error-text" }));
+    row.dataset.keyword = edit.keyword;
+    box.append(row);
+  }
+}
+
+/** Reads what the chosen tags hold today (once per tag), then refreshes the notes. */
+async function loadTagValues() {
+  const id = state.jobId;
+  const missing = state.options.tagEdits.map((e) => e.keyword).filter((k) => !(k in state.tagValues));
+  if (missing.length === 0) return;
+  for (const keyword of missing) state.tagValues[keyword] = {};
+  try {
+    const values = await fetchTagValues(missing);
+    if (state.jobId !== id || !state.options) return;
+    for (const [uid, list] of Object.entries(values)) {
+      missing.forEach((keyword, i) => { state.tagValues[keyword][uid] = list[i]; });
+    }
+    renderTagNotes();
+  } catch {
+    // The old values are a courtesy; the edit itself does not depend on them.
+  }
+}
+
+const describeNow = (current) => !current ? null : current.varies ? "(differs between images)" : current.value == null ? "(not set)" : current.value === "" ? "(empty)" : current.value;
+
+/** Under each tag: what it holds now across the selected series, and any problem with the new value. In each series row: old → new. */
+function renderTagNotes() {
+  const o = state.options, scan = state.job.scan, preview = state.preview;
+  if (!o || !preview) return;
+  const changing = scan.series.filter((s) => preview.series[s.uid].selected);
+  o.tagEdits.forEach((edit, i) => {
+    const row = [...$("tagEdits").children].find((r) => r.dataset.keyword === edit.keyword);
+    if (!row) return;
+    const error = state.tagErrors[i] || "";
+    row.querySelector(".tag-error").textContent = error;
+    row.querySelector("input").classList.toggle("invalid", Boolean(error));
+    const known = state.tagValues[edit.keyword] ?? {};
+    const seen = [...new Set(changing.map((s) => describeNow(known[s.uid])).filter((v) => v != null))];
+    row.querySelector(".tag-now").textContent = changing.length === 0 || seen.length === 0 ? ""
+      : seen.length === 1 ? `Now: ${seen[0]}` : `Now: ${seen.length} different values across the selected series`;
+  });
+  const valid = !state.tagErrors.some(Boolean);
+  for (const row of $("seriesBody").querySelectorAll("tr[data-uid]")) {
+    const lines = !valid || !preview.series[row.dataset.uid].selected ? [] : o.tagEdits.map((edit) => {
+      const was = describeNow((state.tagValues[edit.keyword] ?? {})[row.dataset.uid]);
+      return el("div", { text: `${edit.keyword}: ${was == null ? "" : `${was} `}→ ${edit.value === "" ? "(empty)" : edit.value}` });
+    });
+    row.querySelector(".edits").replaceChildren(...lines);
   }
 }
 
@@ -744,7 +937,7 @@ function renderDone() {
   $("doneDetail").textContent = result.cancelled
     ? "You cancelled part-way. The series already rewritten are complete and keep their new identifiers; the remaining series are unchanged."
     : failed ? "Most files were rewritten, but some could not be changed. They are listed below and were left as they were."
-    : "Every selected series now carries new identifiers and will import as independent data.";
+    : "Every selected series was rewritten with the changes you chose.";
 
   $("doneStats").replaceChildren(
     el("div", { class: "stat" }, el("b", { text: number(result.seriesChanged) }), el("span", { text: "series" })),
@@ -789,8 +982,8 @@ function renderDone() {
   }
 
   $("doneNote").textContent = result.canDownload
-    ? `The upload is deleted from the server when you choose "Unlink another", close this page, or after ${state.info.retentionMinutes} idle minutes. The UID report lists old and new identifiers and contains no patient details.`
-    : "The UID report lists old and new identifiers for each series and contains no patient details.";
+    ? `The upload is deleted from the server when you choose "Unlink another", close this page, or after ${state.info.retentionMinutes} idle minutes. The UID report lists old and new identifiers, plus any tag values you entered; no patient details are copied into it from the files.`
+    : "The UID report lists old and new identifiers for each series, plus any tag values you entered; no patient details are copied into it from the files.";
   show("done");
 }
 
@@ -871,6 +1064,17 @@ function wire() {
   $("optSop").addEventListener("change", (event) => { state.options.sop = event.target.checked; syncOptions(); });
   $("optKeepCt").addEventListener("change", (event) => { state.options.keepCt = event.target.checked; syncOptions(); });
   $("optKeepPet").addEventListener("change", (event) => { state.options.keepPet = event.target.checked; syncOptions(); });
+  $("optKeepStruct").addEventListener("change", (event) => { state.options.keepStruct = event.target.checked; syncOptions(); });
+  $("tagSearch").addEventListener("input", showTagResults);
+  $("tagSearch").addEventListener("focus", showTagResults);
+  $("tagSearch").addEventListener("blur", () => { $("tagResults").hidden = true; });
+  $("tagSearch").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.target.blur(); }
+    if (event.key === "Enter" && state.tags) {
+      const [first] = searchTags(event.target.value);
+      if (first) addTagEdit(first);
+    }
+  });
   $("outInPlace").addEventListener("change", () => { state.options.workOnCopy = false; syncOptions(); });
   $("outCopy").addEventListener("change", () => { state.options.workOnCopy = true; syncOptions(); });
   $("checkAll").addEventListener("change", (event) => {

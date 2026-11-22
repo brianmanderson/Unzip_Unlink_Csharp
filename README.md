@@ -41,14 +41,40 @@ fully offline alternative. Hosting details, and the points an institution may wa
    | Series Instance UID | (0020,000E) | The series imports as a new series instead of merging into the original. |
    | SOP Instance UID | (0008,0018) | Every image gets a new identity, so it is not rejected as a duplicate. Recommended whenever anything else changes. |
 
-Only **CT, MR and PET** series are modified. Structure sets, plans, dose, registrations and anything
-else are listed but left byte-for-byte unchanged - which also means they keep pointing at the
-*original* images, not at the unlinked copy.
+Only **CT, MR and PET** series can be selected. Plans, dose, registrations and anything else are
+listed but left byte-for-byte unchanged - which also means they keep pointing at the *original*
+images, not at the unlinked copy. Structure sets are the exception: see "keep together" below.
 
-Two "keep together" options preserve registrations you still want:
+Three "keep together" options preserve links you still want:
 
 - **4DCT phases** - CT series that share a frame of reference get one new, shared frame of reference.
 - **PET with its CT** - where a PET and a CT share a frame of reference, they keep sharing a new one.
+- **Structure sets with their images** - an RT Structure Set drawn on a series you are changing is
+  rewritten so that everything it points at follows that series to its new identifiers: the frame of
+  reference and series under *Referenced Frame of Reference Sequence*, the frame each ROI is defined
+  in, and the image behind every contour. The structure set keeps its own SOP and Series Instance
+  UIDs, and its contours are not touched. It is matched to its images by the series it names, or,
+  when it names none that are in the study, by frame of reference. A structure set whose images are
+  not in the study, or are not selected, is left alone, and the preview says so. The option is
+  switched on for you when the scan finds a structure set together with its images.
+
+### Changing other tags
+
+Under **Change other tags** you can overwrite any ordinary DICOM tag with a value you type, for
+example `PatientID` or `StudyDescription`. Search the list by keyword, name or tag number
+(`0010,0020`), pick a tag and enter its new value; an empty value clears the tag. The value is written
+to every file of every selected series (and to a structure set that follows them), in the same pass
+as the new identifiers - or on its own, with every identifier switched off.
+
+- Values are checked against the tag's type before anything is written (length, allowed characters,
+  date / time / number formats), and the run is blocked until they are valid.
+- Only top-level tags can be changed, not tags inside sequences.
+- Identifiers (every UID), sequences, binary data, the file meta group and *Specific Character Set*
+  are not offered, so an edit cannot break the links the tool manages. Values are limited to plain
+  ASCII because the file's character set is left as it is.
+- The preview shows *old value → new value* per series. The old value is sampled from the first and
+  last image of each series, and shown as "differs between images" when those two disagree.
+- The UID report records the tags and the new values you entered. Old values are never written to it.
 
 Every other piece of every file - pixel data, transfer syntax, all other tags - is preserved exactly.
 

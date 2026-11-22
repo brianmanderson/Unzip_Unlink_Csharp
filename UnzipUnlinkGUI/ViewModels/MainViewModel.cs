@@ -57,6 +57,11 @@ public sealed class MainViewModel : ObservableObject
     private bool _changeSop = true;
     private bool _keepCt;
     private bool _keepPetCt;
+    private bool _keepStructures;
+    private int _linkedStructureSets;
+    private bool _tagProblem;
+    private string _tagSearchText = "";
+    private readonly Dictionary<string, IReadOnlyDictionary<string, CurrentTagValue>> _tagValues = new(StringComparer.Ordinal);
     private int _plannedSeries;
     private int _plannedFiles;
     private string _runDisabledReason = "";
@@ -96,6 +101,13 @@ public sealed class MainViewModel : ObservableObject
         ContinueCommand = new RelayCommand(ContinueInFolder);
         RetryCommand = new RelayCommand(Retry);
         DismissErrorCommand = new RelayCommand(ClearError);
+        AddFirstTagCommand = new RelayCommand(() =>
+        {
+            if (TagResults.Count > 0)
+            {
+                AddTagEdit(TagResults[0]);
+            }
+        });
     }
 
     // ---------------------------------------------------------------- commands
@@ -111,6 +123,8 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ContinueCommand { get; }
     public ICommand RetryCommand { get; }
     public ICommand DismissErrorCommand { get; }
+    /// <summary>Enter in the tag search box: take the first match.</summary>
+    public ICommand AddFirstTagCommand { get; }
 
     // ---------------------------------------------------------------- stage
 
@@ -248,14 +262,130 @@ public sealed class MainViewModel : ObservableObject
         set { if (Set(ref _keepPetCt, value)) { OnOptionsChanged(); } }
     }
 
+    /// <summary>Structure sets: one that was drawn on a series being changed is repointed at its new IDs.</summary>
+    public bool KeepStructures
+    {
+        get => _keepStructures;
+        set { if (Set(ref _keepStructures, value)) { OnOptionsChanged(); } }
+    }
+
     public bool CanKeepCt => _changeFrame && Ct.IsOn;
     public bool CanKeepPetCt => _changeFrame && Ct.IsOn && Pet.IsOn;
+    /// <summary>Only offered when the scan holds a structure set together with the images it was drawn on.</summary>
+    public bool CanKeepStructures => _linkedStructureSets > 0;
+    public string KeepStructuresHelp => _linkedStructureSets switch
+    {
+        0 => "A structure set follows the images it was drawn on. None found here.",
+        1 => "1 structure set here follows its images to their new IDs, so the contours stay attached.",
+        _ => $"{_linkedStructureSets} structure sets here follow their images to their new IDs, so the contours stay attached.",
+    };
+
+    // ---------------------------------------------------------------- step 3: other tags
+
+    /// <summary>"Set this tag to this value" rows, in the order they were added.</summary>
+    public ObservableCollection<TagEditViewModel> TagEdits { get; } = [];
+    public bool HasTagEdits => TagEdits.Count > 0;
+
+    /// <summary>What is typed in the tag search box; the matches appear in <see cref="TagResults"/>.</summary>
+    public string TagSearchText
+    {
+        get => _tagSearchText;
+        set
+        {
+            if (Set(ref _tagSearchText, value ?? ""))
+            {
+                RefreshTagResults();
+            }
+        }
+    }
+
+    public ObservableCollection<EditableTag> TagResults { get; } = [];
+    public bool ShowTagPlaceholder => _tagSearchText.Length == 0;
+    public bool ShowTagResults => _tagSearchText.Trim().Length > 0;
+    public bool ShowNoTagResults => ShowTagResults && TagResults.Count == 0;
+
+    /// <summary>Bound to the result list's selection: picking a tag adds a row for it and clears the search.</summary>
+    public EditableTag? PickedTag
+    {
+        get => null;
+        set
+        {
+            if (value is not null)
+            {
+                AddTagEdit(value);
+            }
+        }
+    }
+
+    private void RefreshTagResults()
+    {
+        TagResults.Clear();
+        if (ShowTagResults)
+        {
+            var taken = TagEdits.Select(e => e.Keyword).ToHashSet(StringComparer.Ordinal);
+            foreach (EditableTag tag in DicomTagCatalog.Search(_tagSearchText, 40 + taken.Count).Where(t => !taken.Contains(t.Keyword)).Take(40))
+            {
+                TagResults.Add(tag);
+            }
+        }
+        OnPropertyChanged(nameof(ShowTagPlaceholder));
+        OnPropertyChanged(nameof(ShowTagResults));
+        OnPropertyChanged(nameof(ShowNoTagResults));
+    }
+
+    /// <summary>Adds a "change this tag" row (ignored when the tag already has one).</summary>
+    public TagEditViewModel? AddTagEdit(EditableTag tag, string value = "")
+    {
+        if (TagEdits.Any(e => e.Keyword == tag.Keyword))
+        {
+            return null;
+        }
+        var edit = new TagEditViewModel(tag, OnOptionsChanged, RemoveTagEdit) { Value = value };
+        TagEdits.Add(edit);
+        TagSearchText = "";
+        OnPropertyChanged(nameof(HasTagEdits));
+        OnOptionsChanged();
+        _ = LoadTagValuesAsync(tag.Keyword);
+        return edit;
+    }
+
+    private void RemoveTagEdit(TagEditViewModel edit)
+    {
+        TagEdits.Remove(edit);
+        OnPropertyChanged(nameof(HasTagEdits));
+        OnOptionsChanged();
+    }
+
+    /// <summary>Reads what a tag holds today in each series (first and last file) so the grid can show old → new.</summary>
+    private async Task LoadTagValuesAsync(string keyword)
+    {
+        ScanResult? scan = _scan;
+        if (scan is null || _tagValues.ContainsKey(keyword))
+        {
+            return;
+        }
+        try
+        {
+            IReadOnlyDictionary<string, IReadOnlyList<CurrentTagValue>> values =
+                await Task.Run(() => TagValueReader.ReadForScan(scan, [keyword]));
+            if (!ReferenceEquals(scan, _scan))
+            {
+                return;
+            }
+            _tagValues[keyword] = values.ToDictionary(kv => kv.Key, kv => kv.Value[0], StringComparer.Ordinal);
+            RefreshPlan();
+        }
+        catch (Exception)
+        {
+            // The old values are a courtesy; the edit itself does not depend on them.
+        }
+    }
 
     // ---------------------------------------------------------------- step 4: run
 
     public int PlannedSeries { get => _plannedSeries; private set => Set(ref _plannedSeries, value); }
     public int PlannedFiles { get => _plannedFiles; private set => Set(ref _plannedFiles, value); }
-    public bool CanRun => IsReady && !IsConfirming && _plannedSeries > 0;
+    public bool CanRun => IsReady && !IsConfirming && _plannedSeries > 0 && !_tagProblem;
 
     public string RunButtonText => _plannedSeries > 0
         ? $"Unlink {_plannedSeries:N0} series ({Count(_plannedFiles, "file")})"
@@ -294,7 +424,13 @@ public sealed class MainViewModel : ObservableObject
             if (_changeFrame) { parts.Add("Frame of Reference UID"); }
             if (_changeSeries) { parts.Add("Series Instance UID"); }
             if (_changeSop) { parts.Add("SOP Instance UID"); }
-            return "New " + string.Join(", ", parts);
+            var lines = new List<string>();
+            if (parts.Count > 0)
+            {
+                lines.Add("New " + string.Join(", ", parts));
+            }
+            lines.AddRange(TagEdits.Select(e => $"{e.Keyword} → {(e.Value.Length > 0 ? e.Value : "(empty)")}"));
+            return string.Join(Environment.NewLine, lines);
         }
     }
 
@@ -555,6 +691,11 @@ public sealed class MainViewModel : ObservableObject
     {
         _scan = scan;
         _showingResult = false;
+        _tagValues.Clear();
+        foreach (TagEditViewModel edit in TagEdits)
+        {
+            _ = LoadTagValuesAsync(edit.Keyword);
+        }
         _updating = true;
         try
         {
@@ -595,8 +736,13 @@ public sealed class MainViewModel : ObservableObject
             .ToList();
         _keepCt = frames.Any(g => g.Count(s => IsCode(s, "CT")) > 1);
         _keepPetCt = frames.Any(g => g.Any(s => IsCode(s, "CT")) && g.Any(s => IsCode(s, "PT")));
+        _linkedStructureSets = scan.Series.Count(s => s.IsStructureSet && UnlinkPlanner.ImagesOf(s, scan.Series).Count > 0);
+        _keepStructures = _linkedStructureSets > 0;
         OnPropertyChanged(nameof(KeepCt));
         OnPropertyChanged(nameof(KeepPetCt));
+        OnPropertyChanged(nameof(KeepStructures));
+        OnPropertyChanged(nameof(CanKeepStructures));
+        OnPropertyChanged(nameof(KeepStructuresHelp));
     }
 
     private static bool IsCode(DicomSeriesInfo series, string modality) =>
@@ -711,6 +857,11 @@ public sealed class MainViewModel : ObservableObject
             _keepPetCt = false;
             OnPropertyChanged(nameof(KeepPetCt));
         }
+        if (!CanKeepStructures && _keepStructures)
+        {
+            _keepStructures = false;
+            OnPropertyChanged(nameof(KeepStructures));
+        }
         OnPropertyChanged(nameof(CanKeepCt));
         OnPropertyChanged(nameof(CanKeepPetCt));
         OnPropertyChanged(nameof(ShowSopWarning));
@@ -727,6 +878,8 @@ public sealed class MainViewModel : ObservableObject
             NewSopInstanceUid = _changeSop,
             KeepCtSeriesLinked = _keepCt && CanKeepCt,
             KeepPetCtLinked = _keepPetCt && CanKeepPetCt,
+            KeepStructureSetsLinked = _keepStructures && CanKeepStructures,
+            TagEdits = TagEdits.Select(e => new TagEdit(e.Keyword, e.Value)).ToList(),
             SeriesInstanceUids = Rows.Where(r => r.IsIncluded)
                                      .Select(r => r.Series.SeriesInstanceUid)
                                      .ToHashSet(StringComparer.Ordinal),
@@ -746,27 +899,53 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
         UnlinkOptions options = BuildOptions();
+        // A value that is still being typed must not blank the preview: plan without the edits until they are valid.
+        IReadOnlyList<string?> tagErrors = DicomTagCatalog.Validate(options.TagEdits);
+        for (int i = 0; i < TagEdits.Count; i++)
+        {
+            TagEdits[i].Error = tagErrors[i] ?? "";
+        }
+        _tagProblem = tagErrors.Any(e => e is not null);
+        bool anyTagEdits = options.TagEdits.Count > 0;
+        if (_tagProblem)
+        {
+            options.TagEdits = [];
+        }
         UnlinkPlan plan = UnlinkPlanner.Create(_scan, options);
         Dictionary<string, SeriesPlan> planned = plan.Series.ToDictionary(p => p.Series.SeriesInstanceUid, StringComparer.Ordinal);
 
         var frames = new List<(string Before, string After)>(Rows.Count);
         foreach (SeriesRowViewModel row in Rows)
         {
+            string uid = row.Series.SeriesInstanceUid;
             string now = row.Series.FrameOfReferenceUid;
-            string after = planned.TryGetValue(row.Series.SeriesInstanceUid, out SeriesPlan? seriesPlan)
-                ? seriesPlan.NewFrameOfReferenceUid ?? now
-                : now;
-            frames.Add((now, after));
+            bool isPlanned = planned.TryGetValue(uid, out SeriesPlan? seriesPlan);
+            frames.Add((now, isPlanned ? seriesPlan!.NewFrameOfReferenceUid ?? now : now));
+            if (plan.StructureSets.TryGetValue(uid, out StructureSetStatus status))
+            {
+                row.Note = status switch
+                {
+                    StructureSetStatus.Follows => "follows its images",
+                    StructureSetStatus.LeftBehind => "will keep pointing at the original images",
+                    _ => "left unchanged",
+                };
+            }
+            row.Changes = !isPlanned || _tagProblem ? "" : string.Join(Environment.NewLine, TagEdits.Select(e => DescribeChange(e, uid)));
         }
         ApplyBadges(frames);
+        foreach (TagEditViewModel edit in TagEdits)
+        {
+            edit.Now = DescribeNow(edit.Keyword, planned.Keys);
+        }
 
         PlannedSeries = plan.Series.Count;
         PlannedFiles = plan.FileCount;
         RunDisabledReason =
-            plan.Series.Count > 0 ? ""
+            _tagProblem ? "Fix the tag value marked in red first."
+            : plan.Series.Count > 0 ? ""
             : _scan.Series.Count == 0 ? "No DICOM series were found in this folder."
             : !_scan.Series.Any(s => s.IsSupported) ? "Only CT, MR and PET series can be unlinked, and none were found."
-            : !options.ChangesAnything ? "Choose at least one thing to change."
+            : !options.ChangesAnything && !anyTagEdits ? "Choose at least one thing to change."
             : "Tick at least one series to unlink.";
         OnPropertyChanged(nameof(ReviewHelp));
         OnPropertyChanged(nameof(CanRun));
@@ -776,6 +955,41 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ConfirmDetail));
         OnPropertyChanged(nameof(ConfirmChanges));
     }
+
+    /// <summary>"PatientID: OLD → NEW" for one series, with the old part left out until it has been read.</summary>
+    private string DescribeChange(TagEditViewModel edit, string seriesUid)
+    {
+        string? was = _tagValues.TryGetValue(edit.Keyword, out var bySeries) && bySeries.TryGetValue(seriesUid, out CurrentTagValue? current)
+            ? Describe(current)
+            : null;
+        return $"{edit.Keyword}: {(was is null ? "" : was + " ")}→ {(edit.Value.Length > 0 ? edit.Value : "(empty)")}";
+    }
+
+    /// <summary>What a tag holds today across the series that are about to change ("" until it has been read).</summary>
+    private string DescribeNow(string keyword, IEnumerable<string> seriesUids)
+    {
+        if (!_tagValues.TryGetValue(keyword, out var bySeries))
+        {
+            return "";
+        }
+        List<string> seen = seriesUids
+            .Select(uid => bySeries.TryGetValue(uid, out CurrentTagValue? current) ? Describe(current) : null)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return seen.Count switch
+        {
+            0 => "",
+            1 => $"Now: {seen[0]}",
+            _ => $"Now: {seen.Count} different values across the selected series",
+        };
+    }
+
+    private static string Describe(CurrentTagValue current) =>
+        current.Varies ? "(differs between images)"
+        : current.Value is null ? "(not set)"
+        : current.Value.Length == 0 ? "(empty)"
+        : current.Value;
 
     private void ApplyBadges(IReadOnlyList<(string Before, string After)> frames)
     {
@@ -898,7 +1112,9 @@ public sealed class MainViewModel : ObservableObject
                 bool known = before.TryGetValue(series.SeriesInstanceUid, out (string Frame, bool Planned) was);
                 var row = new SeriesRowViewModel(series)
                 {
-                    Note = !series.IsSupported ? "left unchanged" : known && was.Planned ? "" : "not selected",
+                    Note = known && was.Planned ? (series.IsStructureSet ? "now points at the new IDs" : "")
+                        : !series.IsSupported ? "left unchanged"
+                        : "not selected",
                 };
                 row.SetIncluded(known && was.Planned);
                 Rows.Add(row);
@@ -929,6 +1145,15 @@ public sealed class MainViewModel : ObservableObject
             {
                 ResultChanges.Add("New SOP Instance UID for every image");
             }
+            int structureSets = plan.Series.Count(s => s.IsStructureSet);
+            if (structureSets > 0)
+            {
+                ResultChanges.Add(structureSets == 1 ? "1 structure set repointed at its images" : $"{structureSets} structure sets repointed at their images");
+            }
+            foreach (PlannedTagEdit edit in plan.Series[0].TagEdits)
+            {
+                ResultChanges.Add($"{edit.Keyword} set to {(edit.Value.Length > 0 ? edit.Value : "(empty)")}");
+            }
         }
 
         string duration = FormatDuration(result.Duration);
@@ -951,7 +1176,9 @@ public sealed class MainViewModel : ObservableObject
             ResultIsSuccess = true;
             ResultTitle = "Unlinking complete";
             ResultDetail = $"{result.SeriesChanged:N0} series · {Count(result.FilesChanged, "file")} rewritten in {duration}.";
-            ResultNote = "The series now have new IDs and can be imported as independent copies.";
+            ResultNote = plan.Series.Any(s => s.NewFrameOfReferenceUid is not null || s.NewSeriesInstanceUid is not null || s.NewSopInstanceUids)
+                ? "The series now have new IDs and can be imported as independent copies."
+                : "The selected series were rewritten with the new tag values. Their IDs are unchanged.";
         }
     }
 
@@ -969,6 +1196,12 @@ public sealed class MainViewModel : ObservableObject
     {
         _scan = null;
         _showingResult = false;
+        _linkedStructureSets = 0;
+        _tagProblem = false;
+        _tagValues.Clear();
+        TagEdits.Clear();
+        _tagSearchText = "";
+        TagResults.Clear();
         Rows.Clear();
         Warnings.Clear();
         Failures.Clear();
