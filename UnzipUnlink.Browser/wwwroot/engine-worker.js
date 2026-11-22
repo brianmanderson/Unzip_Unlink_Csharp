@@ -13,6 +13,14 @@ const MAX_FILE_BYTES = 512 << 20;     // one file is copied in, parsed and copie
 // stops at 4 GB. 2 GB of images leaves room for both. Folders opened with "Open a folder" have no ceiling: they
 // are rewritten file by file on disk.
 const ZIP_PATH_LIMIT = 2 * 1024 ** 3;
+// Reading and writing files is the slow part, above all for a folder on a network drive, where every file costs a
+// round trip. The engine itself handles one file at a time, but the waiting can overlap: this many files are read
+// (and written) at once, as long as the bytes held for them stay under the budget. A file bigger than the whole
+// budget still goes through, on its own.
+const FILES_AT_ONCE = 8;
+const IN_FLIGHT_BYTES = 256 << 20;
+// Whole files read during the scan are kept (up to this much) so the run does not have to read them a second time.
+const CACHE_BYTES = 384 << 20;
 
 let engine = null;
 let runtime = null;
@@ -20,6 +28,9 @@ let cancelRequested = false;
 /** The study being worked on: { name, kind, entries: [{ key, size, read(), readStart(n), ... }], ... } */
 let study = null;
 let lastPlan = null;
+/** key -> bytes of files the scan read whole; handed to the run once, then dropped. */
+let cache = new Map();
+let cacheBytes = 0;
 
 // ---- Messages ---------------------------------------------------------------------------------------
 
@@ -177,22 +188,27 @@ async function scan({ source }) {
 
   const started = performance.now();
   e.Reset();
-  const byKey = new Map();
+  cache = new Map();
+  cacheBytes = 0;
+  const byKey = new Map(entries.map((entry) => [entry.key, entry]));
   const totalBytes = totalSize;
   let done = 0, lastReport = 0, tooLarge = 0;
-  for (const entry of entries) {
+  const isPartial = (entry) => entry.size > HEADER_SLICE && entry.readStart !== entry.read;
+  await pool(entries, (entry) => (entry.size > MAX_FILE_BYTES ? 0 : isPartial(entry) ? HEADER_SLICE : entry.size), async (entry) => {
     if (cancelRequested) throw new Error("cancelled");
-    byKey.set(entry.key, entry);
     if (entry.size > MAX_FILE_BYTES) {
       tooLarge++;
     } else if (entry.size >= 132) {
-      const partial = entry.size > HEADER_SLICE && entry.readStart !== entry.read;
-      let bytes = partial ? await entry.readStart(HEADER_SLICE) : await entry.read();
-      let kind = e.AddFile(entry.key, bytes, entry.size, partial);
+      let whole = !isPartial(entry);
+      let bytes = whole ? await entry.read() : await entry.readStart(HEADER_SLICE);
+      let kind = e.AddFile(entry.key, bytes, entry.size, !whole);
       if (kind === 4) {
+        whole = true;
         bytes = await entry.read();
         kind = e.AddFile(entry.key, bytes, entry.size, false);
       }
+      // An image that was read in full is very likely about to be rewritten: keep it for the run.
+      if (kind === 0 && whole) remember(entry.key, bytes);
     } else {
       e.AddFile(entry.key, new Uint8Array(0), entry.size, false);
     }
@@ -201,9 +217,8 @@ async function scan({ source }) {
     if (now - lastReport > 120 || done === entries.length) {
       lastReport = now;
       progress("Reading DICOM headers", done, entries.length);
-      await yieldToEvents();
     }
-  }
+  });
   if (tooLarge > 0) {
     notes.push(`${tooLarge === 1 ? "One file is" : `${tooLarge} files are`} larger than ${MAX_FILE_BYTES >> 20} MB and ${tooLarge === 1 ? "was" : "were"} skipped: the in-browser edition handles one file at a time in memory.`);
   }
@@ -226,6 +241,51 @@ async function scan({ source }) {
 /** Gives the worker's event loop a turn so a "cancel" message can arrive during long loops. */
 function yieldToEvents() {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Runs work(item) for every item, up to FILES_AT_ONCE at a time and with at most IN_FLIGHT_BYTES of cost(item)
+ * in flight (one item always runs, however big). Resolves when all are done. If any work throws, no further items
+ * are started and the first error is thrown once the ones already running have finished.
+ */
+function pool(items, cost, work) {
+  return new Promise((resolve, reject) => {
+    let next = 0, active = 0, inFlight = 0, failure = null;
+    const pump = () => {
+      while (!failure && next < items.length && active < FILES_AT_ONCE
+        && (active === 0 || inFlight + cost(items[next]) <= IN_FLIGHT_BYTES)) {
+        const item = items[next++];
+        const weight = cost(item);
+        active++;
+        inFlight += weight;
+        Promise.resolve().then(() => work(item)).catch((error) => { failure ??= error; }).finally(() => {
+          active--;
+          inFlight -= weight;
+          pump();
+        });
+      }
+      if (active === 0 && (failure || next >= items.length)) {
+        if (failure) reject(failure); else resolve();
+      }
+    };
+    pump();
+  });
+}
+
+function remember(key, bytes) {
+  if (cacheBytes + bytes.length <= CACHE_BYTES) {
+    cache.set(key, bytes);
+    cacheBytes += bytes.length;
+  }
+}
+
+/** The whole file: from the scan's cache if it is there (used once, then released), otherwise read now. */
+async function readWhole(entry) {
+  const cached = cache.get(entry.key);
+  if (!cached) return entry.read();
+  cache.delete(entry.key);
+  cacheBytes -= cached.length;
+  return cached;
 }
 
 // ---- Preview / plan / run ---------------------------------------------------------------------------
@@ -267,11 +327,13 @@ async function run({ request, output, destination }) {
     const series = plan.series[index];
     if (cancelRequested && series.unit !== unit) { cancelled = true; break; }
     unit = series.unit;
-    for (const key of series.files) {
+    // The files of a series are read, rewritten and written several at a time; the series is still finished
+    // completely before the next one starts, which is what cancelling between units relies on.
+    await pool(series.files, (key) => 2 * (study.byKey.get(key)?.size ?? 0), async (key) => {
       const entry = study.byKey.get(key);
       handled.add(key);
       try {
-        const input = await entry.read();
+        const input = await readWhole(entry);
         const rewritten = e.Rewrite(index, input);
         await write(entry, rewritten);
         filesChanged++;
@@ -285,9 +347,9 @@ async function run({ request, output, destination }) {
       if (now - lastReport > 120) {
         lastReport = now;
         progress("Unlinking", filesDone, plan.fileCount, { detail: series.label });
-        await yieldToEvents();
       }
-    }
+    });
+    await yieldToEvents();   // lets a "cancel" message in even when every file came straight from the cache
     seriesDone++;
   }
   progress("Unlinking", filesDone, plan.fileCount, { detail: "" });
@@ -296,17 +358,20 @@ async function run({ request, output, destination }) {
   if (output !== "inplace") {
     const rest = study.entries.filter((x) => !handled.has(x.key));
     let copied = 0;
-    for (const entry of rest) {
+    await pool(rest, (entry) => (entry.raw ? 0 : entry.size), async (entry) => {
       await copyUnchanged(entry, zip, target);
       copied++;
       const now = performance.now();
       if (now - lastReport > 120 || copied === rest.length) {
         lastReport = now;
         progress(zip ? "Packing the .zip" : "Copying the other files", copied, rest.length);
-        await yieldToEvents();
       }
-    }
+    });
   }
+
+  // Anything the scan kept for this run has been used or is no longer needed.
+  cache = new Map();
+  cacheBytes = 0;
 
   let blob = null;
   if (zip) {
@@ -331,9 +396,9 @@ async function run({ request, output, destination }) {
 async function copyUnchanged(entry, zip, target) {
   if (zip) {
     if (entry.raw) await zip.addRaw(entry.key, entry.raw.file, entry.raw.entry);
-    else await zip.add(entry.key, await entry.read());
+    else await zip.add(entry.key, await readWhole(entry));
   } else if (target) {
-    await writeFileAt(target, entry.key, await entry.read());
+    await writeFileAt(target, entry.key, await readWhole(entry));
   }
 }
 
@@ -353,6 +418,11 @@ async function tagValues({ keywords }) {
     const entry = study.byKey.get(key);
     if (!entry || entry.size > MAX_FILE_BYTES) return null;
     try {
+      const cached = cache.get(key);   // read by the scan already: no need to touch the file again
+      if (cached) {
+        const fromCache = e.TagValues(cached, tagsJson);
+        return fromCache === "" ? null : JSON.parse(fromCache);
+      }
       const partial = entry.size > HEADER_SLICE && entry.readStart !== entry.read;
       let json = e.TagValues(partial ? await entry.readStart(HEADER_SLICE) : await entry.read(), tagsJson);
       if (json === "" && partial) json = e.TagValues(await entry.read(), tagsJson);
@@ -362,12 +432,12 @@ async function tagValues({ keywords }) {
     }
   };
   const result = {};
-  for (const [uid, [first, last]] of Object.entries(JSON.parse(e.SampleFiles()))) {
-    const a = await read(first);
-    const b = last === first ? a : await read(last);
-    if (!a || !b) continue;   // unreadable: leave the series out rather than claim the tag is not set
-    result[uid] = a.map((value, i) => ({ value, varies: value !== b[i] }));
-  }
+  const sample = (key) => Math.min(study.byKey.get(key)?.size ?? 0, HEADER_SLICE);
+  await pool(Object.entries(JSON.parse(e.SampleFiles())), ([, [first, last]]) => sample(first) + sample(last), async ([uid, [first, last]]) => {
+    const [a, b] = await Promise.all([read(first), last === first ? null : read(last)]);
+    if (!a || (last !== first && !b)) return;   // unreadable: leave the series out rather than claim the tag is not set
+    result[uid] = a.map((value, i) => ({ value, varies: last !== first && value !== b[i] }));
+  });
   return result;
 }
 
