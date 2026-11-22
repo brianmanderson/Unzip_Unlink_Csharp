@@ -131,22 +131,23 @@ public sealed class LocalWorkingCopyTests : IDisposable
         using LocalWorkingCopy copy = LocalWorkingCopy.Create(study.Root, parent: _parent)!;
         UnlinkPlan plan = UnlinkPlanner.Create(DicomScanner.Scan(copy.LocalRoot), Everything());
         UnlinkResult run = UnlinkRunner.Run(plan);
-        string locked = Directory.GetFiles(study.Root, "*.dcm", SearchOption.AllDirectories)[0];
-        byte[] lockedContent = File.ReadAllBytes(locked);
+        // Something that refuses to be replaced on every operating system: a folder where the file should go.
+        // (An open file handle only blocks the swap on Windows.)
+        string blocked = Directory.GetFiles(study.Root, "*.dcm", SearchOption.AllDirectories)[0];
+        File.Delete(blocked);
+        Directory.CreateDirectory(blocked);
+        File.WriteAllText(Path.Combine(blocked, "in-the-way.txt"), "still here");
 
-        UploadResult upload;
-        using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            upload = copy.Upload(LocalWorkingCopy.RewrittenFiles(plan, run));
-        }
+        UploadResult upload = copy.Upload(LocalWorkingCopy.RewrittenFiles(plan, run));
         UnlinkResult result = copy.Combine(plan, run, upload, TimeSpan.Zero);
 
         Assert.False(upload.Complete);
         Assert.Equal(2, upload.FilesCopied);
+        Assert.Equal(2, result.FilesChanged);
         FileFailure failure = Assert.Single(result.Failures);
-        Assert.Equal(locked, failure.Path);
+        Assert.Equal(blocked, failure.Path);
         Assert.Contains("copied back", failure.Error);
-        Assert.Equal(lockedContent, File.ReadAllBytes(locked));
+        Assert.Equal("still here", File.ReadAllText(Path.Combine(blocked, "in-the-way.txt")));
         Assert.Empty(Directory.GetFiles(study.Root, "*.tmp", SearchOption.AllDirectories));
     }
 
