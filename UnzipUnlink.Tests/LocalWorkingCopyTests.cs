@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using UnzipUnlink.Core;
 
 namespace UnzipUnlink.Tests;
@@ -224,6 +225,127 @@ public sealed class LocalWorkingCopyTests : IDisposable
             LocalWorkingCopy.Create(study.Root, new SynchronousProgress<CopyProgress>(_ => cts.Cancel()), cts.Token, _parent));
 
         Assert.Empty(Directory.GetDirectories(_parent));
+    }
+
+    /// <summary>A study zipped into "share/Export.zip", standing in for an archive on a network drive.</summary>
+    private static (string Zip, string Destination, string CtUid, string RsUid) ZippedStudy(SyntheticStudy study)
+    {
+        string ct = study.AddSeries("CT", SyntheticStudy.NewUid(), slices: 3, subfolder: "build/ct");
+        string rs = study.AddStructureSet(ct, subfolder: "build/rs");
+        study.AddSeries("SR", null, slices: 1, subfolder: "build/sr");
+        Directory.CreateDirectory(Path.Combine(study.Root, "build", "empty"));
+        string share = Path.Combine(study.Root, "share");
+        Directory.CreateDirectory(share);
+        string zip = Path.Combine(share, "Export.zip");
+        ZipFile.CreateFromDirectory(Path.Combine(study.Root, "build"), zip);
+        Directory.Delete(Path.Combine(study.Root, "build"), recursive: true);
+        return (zip, ZipTools.DefaultExtractFolder(zip), ct, rs);
+    }
+
+    [Fact]
+    public void A_zip_is_extracted_locally_and_its_folder_appears_on_the_network_only_when_the_result_is_sent()
+    {
+        using var study = new SyntheticStudy();
+        (string zip, string destination, string ct, string rs) = ZippedStudy(study);
+        string share = Path.GetDirectoryName(zip)!;
+        byte[] zipBytes = File.ReadAllBytes(zip);
+
+        using LocalWorkingCopy copy = LocalWorkingCopy.CreateFromZip(zip, destination, parent: _parent)!;
+
+        Assert.True(copy.IsNewFolder);
+        Assert.Equal(destination, copy.SourceRoot);
+        Assert.Equal(5, copy.FileCount);
+        Assert.StartsWith(_parent, copy.LocalRoot);
+        Assert.Equal(["Export.zip"], Directory.GetFileSystemEntries(share).Select(Path.GetFileName));   // nothing extracted there
+
+        UnlinkPlan plan = UnlinkPlanner.Create(DicomScanner.Scan(copy.LocalRoot), Everything());
+        UnlinkResult run = UnlinkRunner.Run(plan);
+        Assert.Equal(["Export.zip"], Directory.GetFileSystemEntries(share).Select(Path.GetFileName));   // still nothing
+        UploadResult upload = copy.SendBack(plan, run);
+        UnlinkResult result = copy.Combine(plan, run, upload, TimeSpan.Zero);
+
+        Assert.True(upload.WholeFolder);
+        Assert.True(upload.Complete);
+        Assert.Equal(5, upload.FilesCopied);                       // everything, not just what changed
+        Assert.Equal(2, result.SeriesChanged);
+        Assert.Equal(4, result.FilesChanged);
+        Assert.False(copy.IsNewFolder);
+        Assert.Equal(["Export", "Export.zip"], Directory.GetFileSystemEntries(share).Select(Path.GetFileName).Order());
+        Assert.Equal(zipBytes, File.ReadAllBytes(zip));            // the archive is kept as it was
+        Assert.True(Directory.Exists(Path.Combine(destination, "empty")));
+        Dictionary<string, byte[]> local = Snapshot(copy.LocalRoot);
+        Assert.Equal(local.Keys.Order(), Snapshot(destination).Keys.Order());
+        Assert.All(Snapshot(destination), kv => Assert.Equal(local[kv.Key], kv.Value));
+        ScanResult scan = DicomScanner.Scan(destination);
+        DicomSeriesInfo images = scan.Series.Single(s => s.Modality == "CT");
+        Assert.NotEqual(ct, images.SeriesInstanceUid);
+        Assert.Equal([images.SeriesInstanceUid], scan.Series.Single(s => s.SeriesInstanceUid == rs).ReferencedSeriesInstanceUids);
+    }
+
+    [Fact]
+    public void Once_the_folder_exists_a_second_run_sends_back_only_what_changed()
+    {
+        using var study = new SyntheticStudy();
+        (string zip, string destination, _, _) = ZippedStudy(study);
+        using LocalWorkingCopy copy = LocalWorkingCopy.CreateFromZip(zip, destination, parent: _parent)!;
+        UnlinkPlan first = UnlinkPlanner.Create(DicomScanner.Scan(copy.LocalRoot), Everything());
+        Assert.True(copy.SendBack(first, UnlinkRunner.Run(first)).Complete);
+
+        UnlinkOptions tagsOnly = Everything();
+        tagsOnly.NewFrameOfReferenceUid = tagsOnly.NewSeriesInstanceUid = tagsOnly.NewSopInstanceUid = false;
+        tagsOnly.TagEdits.Add(new TagEdit("PatientID", "ANON001"));
+        UnlinkPlan second = UnlinkPlanner.Create(DicomScanner.Scan(copy.LocalRoot), tagsOnly);
+        UploadResult upload = copy.SendBack(second, UnlinkRunner.Run(second));
+
+        Assert.False(upload.WholeFolder);
+        Assert.True(upload.Complete);
+        Assert.Equal(4, upload.FilesCopied);   // CT images and their structure set; the SR is not sent again
+        Assert.All(DicomScanner.Scan(destination).Series.Where(s => s.Modality != "SR"), s => Assert.Equal("ANON001", s.PatientId));
+    }
+
+    [Fact]
+    public void A_new_folder_that_is_cancelled_part_way_leaves_nothing_next_to_the_zip()
+    {
+        using var study = new SyntheticStudy();
+        string frame = SyntheticStudy.NewUid();
+        // More than one upload group, so there is a point between groups at which the cancel is noticed.
+        study.AddSeries("CT", frame, slices: 250, subfolder: "build/ct");
+        string share = Path.Combine(study.Root, "share");
+        Directory.CreateDirectory(share);
+        string zip = Path.Combine(share, "Export.zip");
+        ZipFile.CreateFromDirectory(Path.Combine(study.Root, "build"), zip, CompressionLevel.NoCompression, includeBaseDirectory: false);
+        string destination = ZipTools.DefaultExtractFolder(zip);
+        using LocalWorkingCopy copy = LocalWorkingCopy.CreateFromZip(zip, destination, parent: _parent)!;
+        UnlinkPlan plan = UnlinkPlanner.Create(DicomScanner.Scan(copy.LocalRoot), Everything());
+        UnlinkResult run = UnlinkRunner.Run(plan);
+
+        using var cts = new CancellationTokenSource();
+        UploadResult upload = copy.SendBack(plan, run, new SynchronousProgress<CopyProgress>(_ => cts.Cancel()), cts.Token);
+        UnlinkResult result = copy.Combine(plan, run, upload, TimeSpan.Zero);
+
+        Assert.True(upload.WholeFolder);
+        Assert.True(upload.Cancelled);
+        Assert.False(upload.Complete);
+        Assert.Equal(0, upload.FilesCopied);
+        Assert.Equal(0, result.FilesChanged);
+        Assert.Equal(0, result.SeriesChanged);
+        Assert.True(copy.IsNewFolder);
+        // No folder and no half-written ".partial" folder: next time the .zip is opened it starts from scratch.
+        Assert.Equal(["Export.zip"], Directory.GetFileSystemEntries(share).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void A_cancelled_extraction_leaves_nothing_behind_locally_or_next_to_the_zip()
+    {
+        using var study = new SyntheticStudy();
+        (string zip, string destination, _, _) = ZippedStudy(study);
+        using var cts = new CancellationTokenSource();
+
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            LocalWorkingCopy.CreateFromZip(zip, destination, new SynchronousProgress<ZipProgress>(_ => cts.Cancel()), cts.Token, _parent));
+
+        Assert.Empty(Directory.GetDirectories(_parent));
+        Assert.False(Directory.Exists(destination));
     }
 
     public void Dispose()

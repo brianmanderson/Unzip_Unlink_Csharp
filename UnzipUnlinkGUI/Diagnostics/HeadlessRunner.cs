@@ -195,7 +195,8 @@ public static class HeadlessRunner
             if (options.Run && viewModel.IsReady && !options.Demo)
             {
                 string folder = viewModel.FolderPath;
-                List<SeriesSnapshot> before = Snapshot(DicomScanner.Scan(folder));
+                // A .zip extracted to this computer has no folder next to it until the run has finished.
+                List<SeriesSnapshot> before = Directory.Exists(folder) ? Snapshot(DicomScanner.Scan(folder)) : [];
                 await viewModel.RunAsync();
                 List<SeriesSnapshot> after = Snapshot(DicomScanner.Scan(folder));
                 report["verification"] = Compare(before, after);

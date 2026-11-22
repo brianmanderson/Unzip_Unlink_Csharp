@@ -330,8 +330,8 @@ public sealed class JobManager : BackgroundService
             PrepareLocal(job, token);
         }
 
-        string scanRoot = job.ContentRoot;
-        if (!job.IsUpload && WorksLocally(job.ContentRoot))
+        string scanRoot = job.WorkingCopy?.LocalRoot ?? job.ContentRoot;
+        if (!job.IsUpload && job.WorkingCopy is null && WorksLocally(job.ContentRoot))
         {
             // Pull the study down once and do everything on the local disk; only what changed goes back.
             job.SetPhase("Copying to this computer to work faster");
@@ -353,6 +353,18 @@ public sealed class JobManager : BackgroundService
         job.Finish(JobState.Ready);
     }
 
+    /// <summary>
+    /// A .zip on a network drive: unpack it straight onto this computer rather than next to itself, which would
+    /// write every file over the network only to copy it all back down. False when there is no room locally.
+    /// </summary>
+    private bool ExtractLocally(Job job, string zip, string destination, CancellationToken token)
+    {
+        job.SetPhase($"Extracting {Path.GetFileName(zip)} to this computer");
+        job.WorkingCopy = LocalWorkingCopy.CreateFromZip(
+            zip, destination, ProgressTo(job, (ZipProgress p) => (p.EntriesDone, p.EntriesTotal)), token, Path.Combine(WorkspaceRoot, "network"));
+        return job.WorkingCopy is not null;
+    }
+
     private bool WorksLocally(string folder) => _options.WorkLocally.ToLowerInvariant() switch
     {
         "always" => true,
@@ -366,7 +378,7 @@ public sealed class JobManager : BackgroundService
         job.WorkingCopy = null;
     }
 
-    private static void PrepareLocal(Job job, CancellationToken token)
+    private void PrepareLocal(Job job, CancellationToken token)
     {
         string source = job.SourcePath!;
         if (File.Exists(source) && source.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -380,6 +392,10 @@ public sealed class JobManager : BackgroundService
             if (Directory.Exists(destination))
             {
                 job.AddNote($"A folder named \"{Path.GetFileName(destination)}\" already exists next to the archive, so it was used as is (nothing was extracted).");
+            }
+            else if (WorksLocally(source) && ExtractLocally(job, source, destination, token))
+            {
+                job.AddNote($"Extracted to a temporary folder on this computer, because the .zip is on a network drive. The folder \"{Path.GetFileName(destination)}\" is written next to the .zip when the run finishes. The original .zip is kept.");
             }
             else
             {
@@ -411,6 +427,10 @@ public sealed class JobManager : BackgroundService
             throw new UserFacingException("That folder or .zip does not exist on this machine.");
         }
 
+        if (job.WorkingCopy is not null)
+        {
+            return;   // extracted by us, onto this computer: nothing can still be arriving
+        }
         job.SetPhase("Checking that the files have finished copying");
         if (!TransferGuard.WaitUntilStable(job.ContentRoot, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(20), token))
         {
@@ -489,8 +509,16 @@ public sealed class JobManager : BackgroundService
         UnlinkResult result;
         if (!request.WorkOnCopy)
         {
-            job.SetPhase("Copying the changed files back to the network folder");
-            UploadResult upload = workingCopy.Upload(LocalWorkingCopy.RewrittenFiles(plan, run), progress: copyProgress, cancellationToken: token);
+            job.SetPhase(workingCopy.IsNewFolder ? "Writing the unlinked folder next to the .zip" : "Copying the changed files back to the network folder");
+            UploadResult upload = workingCopy.SendBack(plan, run, copyProgress, token);
+            if (upload.WholeFolder && !upload.Complete)
+            {
+                // Written whole or not at all: there is nothing on the network to report on.
+                DiscardWorkingCopy(job);
+                throw new UserFacingException(upload.Cancelled
+                    ? "Cancelled before the unlinked folder was written. Nothing was changed next to the .zip."
+                    : $"The unlinked folder could not be written next to the .zip, so nothing was left there: {upload.Failures[0].Error}");
+            }
             result = workingCopy.Combine(plan, run, upload, clock.Elapsed);
             job.OutputFolder = job.ContentRoot;
         }

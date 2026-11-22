@@ -554,8 +554,6 @@ public sealed class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    partialFolder = folder;
-                    LoadStatus = $"Extracting {zipName}…";
                     var zipProgress = new Progress<ZipProgress>(p =>
                     {
                         if (operation != _operation || !IsLoading)
@@ -566,11 +564,29 @@ public sealed class MainViewModel : ObservableObject
                         LoadProgress = Fraction(p.EntriesDone, p.EntriesTotal);
                         LoadDetail = $"{p.EntriesDone:N0} of {p.EntriesTotal:N0} files";
                     });
-                    await Task.Run(() => ZipTools.Extract(full, folder, zipProgress, token), token);
-                    token.ThrowIfCancellationRequested();
-                    partialFolder = null;
-                    extractedNow = true;
-                    SourceNote = $"Extracted to the folder “{Path.GetFileName(folder)}” next to the .zip. The .zip was kept.";
+                    if (WorkLocally ?? StorageInfo.IsNetworkPath(full))
+                    {
+                        // A .zip on a network drive: unpack it straight onto this computer. Extracting next to the
+                        // .zip would write every file over the network only to copy it all back down again.
+                        LoadStatus = $"Extracting {zipName} to this computer…";
+                        _workingCopy = await Task.Run(() => LocalWorkingCopy.CreateFromZip(full, folder, zipProgress, token), token);
+                        token.ThrowIfCancellationRequested();
+                        if (_workingCopy is not null)
+                        {
+                            extractedNow = true;
+                            SourceNote = $"Extracted to a temporary folder on this computer. The folder “{Path.GetFileName(folder)}” is written next to the .zip when the run finishes. The .zip is kept.";
+                        }
+                    }
+                    if (_workingCopy is null)
+                    {
+                        partialFolder = folder;
+                        LoadStatus = $"Extracting {zipName}…";
+                        await Task.Run(() => ZipTools.Extract(full, folder, zipProgress, token), token);
+                        token.ThrowIfCancellationRequested();
+                        partialFolder = null;
+                        extractedNow = true;
+                        SourceNote = $"Extracted to the folder “{Path.GetFileName(folder)}” next to the .zip. The .zip was kept.";
+                    }
                 }
             }
             FolderPath = folder;
@@ -595,7 +611,13 @@ public sealed class MainViewModel : ObservableObject
             // A network folder is pulled down once and everything is then done on this computer: thousands of small
             // reads and writes over a network are far slower than one copy each way.
             string scanFolder = folder;
-            if (WorkLocally ?? StorageInfo.IsNetworkPath(folder))
+            if (_workingCopy is not null)
+            {
+                // Already on this computer: extracted here from a .zip on the network.
+                scanFolder = _workingCopy.LocalRoot;
+                NetworkHint = "";
+            }
+            else if (WorkLocally ?? StorageInfo.IsNetworkPath(folder))
             {
                 LoadStatus = "Copying to this computer to work faster…";
                 LoadDetail = "";
@@ -1112,11 +1134,13 @@ public sealed class MainViewModel : ObservableObject
             {
                 // The run above changed the local copy. Now send what changed back to the network folder.
                 _rescanning = true;   // late progress reports from the rewrite must not overwrite the copy-back progress
-                IReadOnlyList<IReadOnlyList<string>> changed = LocalWorkingCopy.RewrittenFiles(plan, result);
-                int toCopy = changed.Sum(g => g.Count);
+                bool newFolder = workingCopy.IsNewFolder;
+                int toCopy = newFolder ? workingCopy.FileCount : LocalWorkingCopy.RewrittenFiles(plan, result).Sum(g => g.Count);
                 if (!_isCancelling)
                 {
-                    RunStatus = "Copying the changed files back to the network folder…";
+                    RunStatus = newFolder
+                        ? "Writing the unlinked folder next to the .zip…"
+                        : "Copying the changed files back to the network folder…";
                 }
                 RunDetail = $"0 of {Count(toCopy, "file")}";
                 RunProgress = 0;
@@ -1129,7 +1153,18 @@ public sealed class MainViewModel : ObservableObject
                     RunProgress = Fraction(p.FilesDone, p.FilesTotal);
                     RunDetail = $"{p.FilesDone:N0} of {Count(p.FilesTotal, "file")} copied back";
                 });
-                UploadResult upload = await Task.Run(() => workingCopy.Upload(changed, progress: uploadProgress, cancellationToken: token));
+                UploadResult upload = await Task.Run(() => workingCopy.SendBack(plan, result, uploadProgress, token));
+                if (upload.WholeFolder && !upload.Complete)
+                {
+                    // The folder next to the .zip is written whole or not at all, so there is no result to show.
+                    string why = upload.Cancelled
+                        ? "Cancelled before the unlinked folder was written. Nothing was changed on the network; open the .zip again to start over."
+                        : $"The unlinked folder could not be written next to the .zip, so nothing was left there: {upload.Failures[0].Error}";
+                    ClearData();
+                    Stage = Stage.Empty;
+                    ShowError(why, canRetry: true);
+                    return;
+                }
                 result = workingCopy.Combine(plan, result, upload, clock.Elapsed);
                 if (upload.Complete)
                 {

@@ -417,6 +417,39 @@ public sealed class WebApiTests : IDisposable
         Assert.All(workingCopies, folder => Assert.False(Directory.Exists(folder)));
     }
 
+    [Fact]
+    public async Task A_zip_worked_on_locally_is_only_written_next_to_itself_when_the_run_finishes()
+    {
+        // "Always" stands in for a .zip on a network drive: it is unpacked onto the server's own disk, and the
+        // extracted, unlinked folder appears next to the .zip in one go at the end.
+        using var study = new SyntheticStudy();
+        string ctUid = study.AddSeries("CT", SyntheticStudy.NewUid(), slices: 3, subfolder: "build/ct");
+        string share = Path.Combine(study.Root, "share");
+        Directory.CreateDirectory(share);
+        string zip = Path.Combine(share, "Export.zip");
+        ZipFile.CreateFromDirectory(Path.Combine(study.Root, "build"), zip);
+        string folder = Path.Combine(share, "Export");
+        HttpClient client = CreateClient("Always", workLocally: "Always");
+
+        JsonElement created = await (await client.PostAsJsonAsync("/api/jobs/local", new { path = zip })).Content.ReadFromJsonAsync<JsonElement>();
+        string id = created.GetProperty("id").GetString()!;
+        JsonElement ready = await WaitFor(client, id, "ready");
+
+        Assert.Equal(3, ready.GetProperty("scan").GetProperty("fileCount").GetInt32());
+        Assert.Contains(ready.GetProperty("notes").EnumerateArray(), n => n.GetString()!.Contains("temporary folder on this computer"));
+        Assert.Equal(folder, ready.GetProperty("location").GetString());
+        Assert.False(Directory.Exists(folder));   // reviewed, but nothing written next to the .zip yet
+
+        Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync($"/api/jobs/{id}/run", AllChanges("CT"))).StatusCode);
+        JsonElement done = await WaitFor(client, id, "done");
+
+        Assert.Equal(3, done.GetProperty("result").GetProperty("filesChanged").GetInt32());
+        Assert.Equal(folder, done.GetProperty("result").GetProperty("outputFolder").GetString());
+        Assert.NotEqual(ctUid, DicomScanner.Scan(folder).Series.Single().SeriesInstanceUid);
+        Assert.Equal(["Export", "Export.zip"], Directory.GetFileSystemEntries(share).Select(Path.GetFileName).Order());
+        Assert.Empty(Directory.GetDirectories(_workspace, "copy-*", SearchOption.AllDirectories));
+    }
+
     public void Dispose()
     {
         foreach (IDisposable disposable in _disposables)
