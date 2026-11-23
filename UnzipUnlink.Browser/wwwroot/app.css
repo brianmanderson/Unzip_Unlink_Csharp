@@ -123,6 +123,16 @@ a { color: var(--accent); text-underline-offset: 2px; }
 .logo-spark { fill: none; stroke: var(--on-accent); stroke-width: 2; stroke-linecap: round; opacity: .85; }
 .top-actions { display: flex; gap: 6px; }
 
+/* Shown on every step: the one thing a visitor with patient data needs to know before anything else. */
+.privacy {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 28px; font-size: 13.5px; text-align: center;
+  background: var(--ok-soft); color: var(--ok);
+}
+.privacy svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.privacy span { color: var(--text); }
+.privacy strong { color: var(--ok); }
+
 /* ---- Steps ------------------------------------------------------------------------------------ */
 .steps {
   list-style: none; margin: 0 auto; padding: 22px 28px 6px;
