@@ -101,8 +101,10 @@ dotnet test                               # verification gate
 
 Four steps: **Add data -> Review & choose -> Unlink -> Finish.**
 
-- **Upload from this computer** - drop a study folder or a .zip (or use the buttons). The originals on
-  your computer are never touched; at the end you download `<name>_unlinked.zip`.
+- **Unlink a copy** - drop a study folder or a .zip (or use the buttons). The originals on
+  your computer are never touched; at the end you download `<name>_unlinked.zip`. When the app runs
+  on your own PC the files never leave it; when it runs on a shared server they are sent to that
+  server only, and the page says which of the two applies.
 - **Use a folder on this machine** - type or browse to a folder or .zip on the computer the app is
   running on. Nothing is uploaded, so this is the fastest route for large studies. You choose whether
   to change the files in place (like the desktop app) or to write a separate `<folder>_unlinked` copy.

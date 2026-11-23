@@ -251,7 +251,9 @@ async function startUpload(items) {
   discardJob();
   const tracker = { cancelled: false, xhrs: new Set() };
   state.upload = tracker;
-  showBusy("Uploading", `${plural(items.length, "file")} · ${bytes(totalBytes)}`, 0, totalBytes, "", "add");
+  // On the same computer nothing is being sent anywhere; the app is only taking its working copy.
+  const sending = state.info.sameMachine ? "Copying" : "Uploading";
+  showBusy(sending, `${plural(items.length, "file")} · ${bytes(totalBytes)}`, 0, totalBytes, "", "add");
 
   try {
     const { id } = await api("POST", "/api/jobs/upload", { name: uploadName(items) });
@@ -261,7 +263,7 @@ async function startUpload(items) {
     const report = () => {
       let sent = finishedBytes;
       for (const loaded of inFlight.values()) sent += loaded;
-      showBusy("Uploading", `${plural(items.length, "file")} · ${bytes(totalBytes)}`, sent, totalBytes,
+      showBusy(sending, `${plural(items.length, "file")} · ${bytes(totalBytes)}`, sent, totalBytes,
         `${bytes(sent)} of ${bytes(totalBytes)} · ${number(finishedFiles)} of ${number(items.length)} files`, "add");
     };
     const worker = async () => {
@@ -982,7 +984,7 @@ function renderDone() {
   }
 
   $("doneNote").textContent = result.canDownload
-    ? `The upload is deleted from the server when you choose "Unlink another", close this page, or after ${state.info.retentionMinutes} idle minutes. The UID report lists old and new identifiers, plus any tag values you entered; no patient details are copied into it from the files.`
+    ? `${state.info.sameMachine ? "The working copy is deleted" : "The upload is deleted from the server"} when you choose "Unlink another", close this page, or after ${state.info.retentionMinutes} idle minutes. The UID report lists old and new identifiers, plus any tag values you entered; no patient details are copied into it from the files.`
     : "The UID report lists old and new identifiers for each series, plus any tag values you entered; no patient details are copied into it from the files.";
   show("done");
 }
@@ -1103,8 +1105,9 @@ async function init() {
   }
   const info = state.info;
   $("localCard").hidden = !info.localFolders;
-  $("uploadPrivacy").textContent = info.localFolders
-    ? `Files are sent only to this app on ${info.machine} and are deleted when you finish or after ${info.retentionMinutes} idle minutes.`
+  // Only claim that nothing leaves the computer when that is true: the browser and the app are on the same one.
+  $("uploadPrivacy").textContent = info.sameMachine
+    ? `Your files never leave this computer: this app is running on it (${info.machine}). The working copy it makes is deleted when you finish or after ${info.retentionMinutes} idle minutes.`
     : `Files are sent only to the Unzip & Unlink server (${info.machine}), never to a third party, and are deleted when you finish or after ${info.retentionMinutes} idle minutes.`;
   $("footerInfo").textContent = `Unzip & Unlink ${info.version} · running on ${info.machine}`;
   $("aboutVersion").textContent = `Version ${info.version}`;
