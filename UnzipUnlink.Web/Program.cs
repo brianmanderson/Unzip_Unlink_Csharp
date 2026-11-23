@@ -83,6 +83,8 @@ api.MapGet("/info", (HttpContext context) => Results.Json(new
     version,
     machine = Environment.MachineName,
     localFolders = Access.AllowsLocalFolders(context, options),
+    // The page words itself differently when the browser and the app share a computer: nothing leaves it then.
+    sameMachine = Access.IsSameMachine(context),
     retentionMinutes = options.RetentionMinutes,
     maxUploadBytes = options.MaxUploadBytes,
     supportedModalities = UnlinkOptions.SupportedModalities.OrderBy(m => m),
@@ -427,7 +429,7 @@ internal static class Access
     /// True only for a browser on the server itself: loopback address, a localhost Host header (which defeats
     /// DNS rebinding) and no sign of a reverse proxy relaying somebody else's request.
     /// </summary>
-    private static bool IsSameMachine(HttpContext context)
+    public static bool IsSameMachine(HttpContext context)
     {
         IPAddress? remote = context.Connection.RemoteIpAddress;
         if (remote is null || !IPAddress.IsLoopback(remote))

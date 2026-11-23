@@ -197,6 +197,8 @@ public static class HeadlessRunner
                 string folder = viewModel.FolderPath;
                 // A .zip extracted to this computer has no folder next to it until the run has finished.
                 List<SeriesSnapshot> before = Directory.Exists(folder) ? Snapshot(DicomScanner.Scan(folder)) : [];
+                // Let the series table finish laying out first: a short run is otherwise captured half drawn.
+                await Settle(window.Dispatcher);
                 await viewModel.RunAsync();
                 List<SeriesSnapshot> after = Snapshot(DicomScanner.Scan(folder));
                 report["verification"] = Compare(before, after);
